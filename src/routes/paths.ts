@@ -77,7 +77,7 @@ export const paths = {
   },
   purchaseOrders: {
     root: ROOTS.PURCHASE_ORDERS,
-    details: `${ROOTS.PURCHASE_ORDERS}/details`,
+    details: (id: string) => `${ROOTS.PURCHASE_ORDERS}/details/details?id=${id}`,
   },
   documents: {
     root: ROOTS.DOCUMENTS,
@@ -92,7 +92,7 @@ export const paths = {
   contract: {
     root: ROOTS.CONTRACT,
     management: `${ROOTS.CONTRACT}/management`,
-    details: `${ROOTS.CONTRACT}/contract-details`,
+    details: (contractId: string) => `${ROOTS.CONTRACT}/contract-details/details?id=${contractId}`,
     add: `${ROOTS.CONTRACT}/add-contract`,
     edit: `${ROOTS.CONTRACT}/add-contract`,
     approval: `${ROOTS.CONTRACT}/contract-approval`,

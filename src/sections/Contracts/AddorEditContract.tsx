@@ -24,8 +24,10 @@ import {
   FormHelperText,
   LinearProgress,
   CircularProgress,
+  Snackbar,
 } from '@mui/material';
-import React, { useRef, useState, useReducer, useCallback } from 'react';
+
+import React, { useRef, useState, useReducer, useCallback, useEffect } from 'react';
 import { alpha, styled, useTheme } from '@mui/material/styles';
 
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -42,18 +44,19 @@ import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
 import SendOutlinedIcon from '@mui/icons-material/SendOutlined';
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'next/navigation';
-
-// ── replace these with your actual project imports ────────────────────────────
-// import PremiumBreadcrumbs from 'src/components/DynamicBreadcrumbs/page';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────────────────────────────────────────
+import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
+import { RootState } from 'src/redux/store';
+import { createContract, fetchContracts, clearCreateState } from 'src/redux/ContractManagement/ContractManagementSlice';
+import type { CreateContractRequest } from 'src/redux/ContractManagement/ContractManagementSlice';
+import { fetchVendors } from 'src/redux/VendorManagement/VendorManagementSlice';
+import type { Vendor } from 'src/redux/VendorManagement/VendorManagementSlice';
 
 /** Shape of the contract creation form */
 interface ContractFormValues {
+  contractCode: string;
   contractTitle: string;
   vendor: string | null;
+  vendorId: string | null; // Added to store vendor ID
   contractType: string | null;
   category: string | null;
   description: string;
@@ -62,80 +65,26 @@ interface ContractFormValues {
   renewalDate: string;
   contractValue: string;
   currency: string | null;
+  strHtmlContent?: string | null
 }
 
-/** Validation error map — keyed by ContractFormValues field names */
 type FormErrors = Partial<Record<keyof ContractFormValues, string>>;
-
-/** Uploaded file entry */
 interface UploadedFile {
   id: string;
   file: File;
-  /** Upload progress 0–100 */
   progress: number;
-  /** Whether the simulated upload is complete */
   done: boolean;
-  /** Simulated error during upload */
   error: string | null;
 }
 
-// ── Redux-mirror action/state types ───────────────────────────────────────────
-type CreateAction =
-  | { type: 'create/pending' }
-  | { type: 'create/fulfilled'; payload: string } // payload = new contractId
-  | { type: 'create/rejected'; payload: string }
-  | { type: 'create/reset' };
-
-interface CreateState {
-  submitting: boolean;
-  createdId: string | null;
-  error: string | null;
+interface VendorOption {
+  id: string;
+  name: string;
 }
 
-const initialCreateState: CreateState = {
-  submitting: false,
-  createdId: null,
-  error: null,
-};
+// Remove static VENDOR_OPTIONS - will be fetched from API
+// const VENDOR_OPTIONS: VendorOption[] = [ ... ];
 
-/** Local reducer — mirrors the shape of a real RTK createSlice reducer */
-function createReducer(state: CreateState, action: CreateAction): CreateState {
-  switch (action.type) {
-    case 'create/pending':
-      return { ...state, submitting: true, error: null };
-    case 'create/fulfilled':
-      return { submitting: false, createdId: action.payload, error: null };
-    case 'create/rejected':
-      return { ...state, submitting: false, error: action.payload };
-    case 'create/reset':
-      return initialCreateState;
-    default:
-      return state;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONSTANTS — dropdown options
-// These are UI-layer option lists only; business rules remain on the backend.
-// TODO: Replace with API-fetched options from /api/contracts/meta (vendors,
-//       contract types, categories, currencies) once endpoint is ready.
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Vendor options — populated from fetched data in real integration */
-const VENDOR_OPTIONS: string[] = [
-  'TechNova Solutions',
-  'Prime Industrial Supplies',
-  'GreenLeaf Traders',
-  'Skyline Logistics',
-  'BrightTech AMC',
-  'Delta Security Systems',
-  'Vertex Infra Pvt Ltd',
-  'ClearWave Telecom',
-  'PowerGen Services',
-  'PeopleSoft India',
-];
-
-/** Contract type options — configurable; do NOT hardcode business rules per spec §11 */
 const CONTRACT_TYPE_OPTIONS: string[] = [
   'Service Agreement',
   'Supply Contract',
@@ -147,7 +96,6 @@ const CONTRACT_TYPE_OPTIONS: string[] = [
   'Framework Agreement',
 ];
 
-/** Category options — configurable; sourced from backend in real integration */
 const CATEGORY_OPTIONS: string[] = [
   'IT Services',
   'Manufacturing',
@@ -161,22 +109,16 @@ const CATEGORY_OPTIONS: string[] = [
   'Finance',
 ];
 
-/** Currency options */
 const CURRENCY_OPTIONS: string[] = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
 
-/** Max file size in bytes — 10 MB */
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
-/** Allowed MIME types — spec §4-D: PDF + DOCX */
 const ALLOWED_FILE_TYPES = [
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
 const ALLOWED_FILE_EXTENSIONS = '.pdf,.docx';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STEPPER STYLING — custom connector to match reference dashboard aesthetic
-// ─────────────────────────────────────────────────────────────────────────────
 const StyledStepConnector = styled(StepConnector)(({ theme }) => ({
   '& .MuiStepConnector-line': {
     borderColor: alpha(theme.palette.text.primary, 0.12),
@@ -193,9 +135,6 @@ const StyledStepConnector = styled(StepConnector)(({ theme }) => ({
   },
 }));
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STEP DEFINITIONS
-// ─────────────────────────────────────────────────────────────────────────────
 const STEPS = [
   { label: 'Basic Info', icon: <InfoOutlinedIcon sx={{ fontSize: 16 }} /> },
   { label: 'Dates & Value', icon: <AttachMoneyOutlinedIcon sx={{ fontSize: 16 }} /> },
@@ -203,9 +142,6 @@ const STEPS = [
   { label: 'Review & Submit', icon: <CheckCircleOutlineIcon sx={{ fontSize: 16 }} /> },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER — SectionCard  (matches reference dashboard card style exactly)
-// ─────────────────────────────────────────────────────────────────────────────
 function SectionCard({
   title,
   icon,
@@ -251,9 +187,6 @@ function SectionCard({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPER — ReviewField  (read-only row used in the Review step)
-// ─────────────────────────────────────────────────────────────────────────────
 function ReviewField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <Stack
@@ -280,28 +213,20 @@ function ReviewField({ label, value }: { label: string; value: React.ReactNode }
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// VALIDATION — runs per-step before advancing, and on final submit
-// Spec §4-D: End Date must be after Start Date; required fields mandatory;
-//            file size validation handled separately in upload logic.
-// ─────────────────────────────────────────────────────────────────────────────
 function validateStep(step: number, values: ContractFormValues): FormErrors {
   const errors: FormErrors = {};
 
   if (step === 0) {
-    // ── Step 0: Basic Info validations ─────────────────────────────────────
     if (!values.contractTitle.trim()) errors.contractTitle = 'Contract Title is required.';
-    if (!values.vendor) errors.vendor = 'Please select a Vendor.';
+    if (!values.vendorId) errors.vendor = 'Please select a Vendor.';
     if (!values.contractType) errors.contractType = 'Please select a Contract Type.';
     if (!values.category) errors.category = 'Please select a Category.';
   }
 
   if (step === 1) {
-    // ── Step 1: Dates & Financial validations ───────────────────────────────
     if (!values.startDate) errors.startDate = 'Start Date is required.';
     if (!values.endDate) errors.endDate = 'End Date is required.';
     if (values.startDate && values.endDate && values.endDate <= values.startDate) {
-      // Spec §4-D: End Date must be after Start Date
       errors.endDate = 'End Date must be after Start Date.';
     }
     if (!values.contractValue.trim()) {
@@ -311,9 +236,6 @@ function validateStep(step: number, values: ContractFormValues): FormErrors {
     }
     if (!values.currency) errors.currency = 'Please select a Currency.';
   }
-
-  // Step 2 (Documents) has no form-field validations — upload is optional at create time
-  // Step 3 (Review) re-validates all steps before final submit
   if (step === 3) {
     Object.assign(errors, validateStep(0, values), validateStep(1, values));
   }
@@ -321,10 +243,6 @@ function validateStep(step: number, values: ContractFormValues): FormErrors {
   return errors;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// FILE UPLOAD ITEM — shows progress bar and remove button per file
-// Spec §4-D: Upload progress + Validation errors
-// ─────────────────────────────────────────────────────────────────────────────
 interface FileItemProps {
   entry: UploadedFile;
   onRemove: (id: string) => void;
@@ -339,13 +257,12 @@ function FileItem({ entry, onRemove }: FileItemProps) {
         px: 1.5,
         py: 1.2,
         borderRadius: 1.5,
-        border: `1px solid ${
-          entry.error
+        border: `1px solid ${entry.error
             ? theme.palette.error.main
             : entry.done
               ? alpha(theme.palette.success.main, 0.4)
               : alpha(theme.palette.text.primary, 0.1)
-        }`,
+          }`,
         bgcolor: entry.error
           ? alpha(theme.palette.error.main, 0.03)
           : entry.done
@@ -355,7 +272,6 @@ function FileItem({ entry, onRemove }: FileItemProps) {
       })}
     >
       <Stack direction="row" alignItems="center" spacing={1.5}>
-        {/* File type icon */}
         <Box
           sx={(theme) => ({
             width: 34,
@@ -374,7 +290,6 @@ function FileItem({ entry, onRemove }: FileItemProps) {
           <DescriptionOutlinedIcon sx={{ fontSize: 16 }} />
         </Box>
 
-        {/* File name + progress */}
         <Box flex={1} minWidth={0}>
           <Stack direction="row" justifyContent="space-between" alignItems="center">
             <Typography variant="caption" fontWeight={600} noWrap sx={{ maxWidth: 260 }}>
@@ -385,7 +300,6 @@ function FileItem({ entry, onRemove }: FileItemProps) {
             </Typography>
           </Stack>
 
-          {/* Progress bar — shown while uploading */}
           {!entry.done && !entry.error && (
             <Box mt={0.5}>
               <LinearProgress
@@ -399,14 +313,12 @@ function FileItem({ entry, onRemove }: FileItemProps) {
             </Box>
           )}
 
-          {/* Error message — spec §4-D: Validation errors */}
           {entry.error && (
             <Typography variant="caption" color="error.main">
               {entry.error}
             </Typography>
           )}
 
-          {/* Success state */}
           {entry.done && !entry.error && (
             <Stack direction="row" alignItems="center" spacing={0.5} mt={0.3}>
               <CheckCircleOutlineIcon sx={{ fontSize: 12, color: 'success.main' }} />
@@ -417,7 +329,6 @@ function FileItem({ entry, onRemove }: FileItemProps) {
           )}
         </Box>
 
-        {/* Remove button */}
         <Tooltip title="Remove file">
           <IconButton size="small" onClick={() => onRemove(entry.id)}>
             <DeleteOutlineIcon sx={{ fontSize: 15 }} />
@@ -428,16 +339,20 @@ function FileItem({ entry, onRemove }: FileItemProps) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STEP 0 — BASIC INFORMATION  (spec §4-D Fields: Title, Vendor, Type, Description)
-// ─────────────────────────────────────────────────────────────────────────────
 interface StepBasicInfoProps {
   values: ContractFormValues;
   errors: FormErrors;
   onChange: (field: keyof ContractFormValues, value: string | null) => void;
+  onVendorChange: (vendorId: string | null, vendorName: string | null) => void;
+  vendorOptions: VendorOption[];
+  vendorsLoading: boolean;
 }
 
-function StepBasicInfo({ values, errors, onChange }: StepBasicInfoProps) {
+function StepBasicInfo({ values, errors, onChange, onVendorChange, vendorOptions, vendorsLoading }: StepBasicInfoProps) {
+  const selectedVendor = values.vendorId
+    ? vendorOptions.find(v => v.id === values.vendorId)
+    : null;
+
   return (
     <SectionCard title="Basic Information" icon={<InfoOutlinedIcon sx={{ fontSize: 16 }} />}>
       <Box display="grid" gridTemplateColumns={{ xs: '1fr', sm: 'repeat(2, 1fr)' }} gap={2.5}>
@@ -455,18 +370,33 @@ function StepBasicInfo({ values, errors, onChange }: StepBasicInfoProps) {
           />
         </Box>
 
-        {/* Vendor — dropdown, mandatory per spec §4-D */}
+        {/* Vendor — dropdown from API, mandatory per spec §4-D */}
         <Autocomplete
           size="small"
-          options={VENDOR_OPTIONS}
-          value={values.vendor}
-          onChange={(_, v) => onChange('vendor', v)}
+          options={vendorOptions}
+          getOptionLabel={(option) => option.name}
+          isOptionEqualToValue={(option, value) => option.id === value.id}
+          value={selectedVendor}
+          loading={vendorsLoading}
+          onChange={(_, vendor) => {
+            onVendorChange(vendor?.id || null, vendor?.name || null);
+            onChange('vendor', vendor?.name || null);
+          }}
           renderInput={(params) => (
             <TextField
               {...params}
               label="Vendor *"
               error={!!errors.vendor}
               helperText={errors.vendor}
+              InputProps={{
+                ...params.InputProps,
+                endAdornment: (
+                  <>
+                    {vendorsLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                    {params.InputProps.endAdornment}
+                  </>
+                ),
+              }}
             />
           )}
         />
@@ -521,9 +451,6 @@ function StepBasicInfo({ values, errors, onChange }: StepBasicInfoProps) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STEP 1 — DATES & FINANCIAL INFO  (spec §4-D: Start Date, End Date, Value, Currency)
-// ─────────────────────────────────────────────────────────────────────────────
 interface StepDatesFinancialProps {
   values: ContractFormValues;
   errors: FormErrors;
@@ -622,7 +549,7 @@ function StepDatesFinancial({ values, errors, onChange }: StepDatesFinancialProp
           <strong>
             {Math.ceil(
               (new Date(values.endDate).getTime() - new Date(values.startDate).getTime()) /
-                (1000 * 60 * 60 * 24)
+              (1000 * 60 * 60 * 24)
             )}{' '}
             days
           </strong>
@@ -632,10 +559,6 @@ function StepDatesFinancial({ values, errors, onChange }: StepDatesFinancialProp
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STEP 2 — DOCUMENT UPLOAD  (spec §4-D: PDF/DOCX, upload progress, file size validation)
-// Also implements spec §5 Generic Reusable Document Management component
-// ─────────────────────────────────────────────────────────────────────────────
 interface StepDocumentsProps {
   files: UploadedFile[];
   fileError: string | null;
@@ -730,17 +653,19 @@ function StepDocuments({ files, fileError, onAddFiles, onRemoveFile }: StepDocum
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STEP 3 — REVIEW & SUBMIT  (read-only summary before submission)
-// ─────────────────────────────────────────────────────────────────────────────
 interface StepReviewProps {
   values: ContractFormValues;
   files: UploadedFile[];
   errors: FormErrors;
+  vendorOptions: VendorOption[];
 }
 
-function StepReview({ values, files, errors }: StepReviewProps) {
+function StepReview({ values, files, errors, vendorOptions }: StepReviewProps) {
   const hasErrors = Object.keys(errors).length > 0;
+
+  const vendorName = values.vendorId
+    ? vendorOptions.find(v => v.id === values.vendorId)?.name
+    : values.vendor;
 
   return (
     <>
@@ -755,7 +680,7 @@ function StepReview({ values, files, errors }: StepReviewProps) {
       {/* Basic Info review */}
       <SectionCard title="Basic Information" icon={<InfoOutlinedIcon sx={{ fontSize: 16 }} />}>
         <ReviewField label="Contract Title" value={values.contractTitle} />
-        <ReviewField label="Vendor" value={values.vendor} />
+        <ReviewField label="Vendor" value={vendorName} />
         <ReviewField label="Contract Type" value={values.contractType} />
         <ReviewField label="Category" value={values.category} />
         <ReviewField label="Description" value={values.description || 'Not provided'} />
@@ -820,20 +745,12 @@ function StepReview({ values, files, errors }: StepReviewProps) {
           </Stack>
         )}
       </SectionCard>
-
-      {/* Save as draft note */}
-      <Alert severity="info" icon={<InfoOutlinedIcon fontSize="small" />} sx={{ mt: 1 }}>
-        Clicking <strong>Save as Draft</strong> will create the contract in Draft status. Clicking{' '}
-        <strong>Submit for Review</strong> will change the status to <em>Under Review</em> and
-        notify the approvers.
-      </Alert>
     </>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SUCCESS DIALOG — shown after successful contract creation
-// ─────────────────────────────────────────────────────────────────────────────
+// ── SuccessDialog kept in codebase but no longer triggered after submit ────────
+// Retained for potential future use (e.g. draft save confirmation).
 interface SuccessDialogProps {
   open: boolean;
   contractId: string;
@@ -876,51 +793,54 @@ function SuccessDialog({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SIMULATED API CALL — swap for real endpoint
-// TODO: replace with → dispatch(createContract({ formValues, files }))
-//       once the RTK thunk is created in src/store/slices/contractSlice
-// ─────────────────────────────────────────────────────────────────────────────
-function submitContractMock(
-  _values: ContractFormValues,
-  _submitType: 'draft' | 'review'
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      // Simulate ~90% success, 10% failure for testing error handling
-      if (Math.random() > 0.1) {
-        const newId = `CON-${2500 + Math.floor(Math.random() * 100)}`;
-        resolve(newId);
-      } else {
-        reject(new Error('Server error — please try again.'));
-      }
-    }, 1800);
-  });
+// Toast notification component
+interface ToastProps {
+  open: boolean;
+  message: string;
+  severity: 'success' | 'error' | 'info' | 'warning';
+  onClose: () => void;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN COMPONENT — AddorEditContract
-// ─────────────────────────────────────────────────────────────────────────────
+function ToastNotification({ open, message, severity, onClose }: ToastProps) {
+  return (
+    <Snackbar
+      open={open}
+      autoHideDuration={6000}
+      onClose={onClose}
+      anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+    >
+      <Alert onClose={onClose} severity={severity} sx={{ width: '100%' }}>
+        {message}
+      </Alert>
+    </Snackbar>
+  );
+}
+
 function AddorEditContract() {
   const theme = useTheme();
   const PRIMARY = theme.palette.primary.main;
 
-  // ── replace these with your actual project imports ─────────────────────────
+  const dispatch = useAppDispatch();
   const router = useRouter();
-  // const dispatch = useAppDispatch();
-  // const { submitting, createdId, error } = useAppSelector((s) => s.contractCreate);
 
-  // ── local Redux-mirror state (remove once real Redux slice is wired) ────────
-  const [state, dispatch] = useReducer(createReducer, initialCreateState);
-  const { submitting, createdId, error } = state;
+  const { creating: submitting, createError: error, data: contracts } = useAppSelector(
+    (state: RootState) => state.contractManagement
+  );
 
-  // ── stepper state ────────────────────────────────────────────────────────────
+  // Get vendors from Redux store
+  const { data: vendors, loading: vendorsLoading, error: vendorsError } = useAppSelector(
+    (state: RootState) => state.vendorManagement
+  );
+
+  const createdId = contracts.length > 0 ? contracts[0]?.pk_chr_contract_id : null;
+
   const [activeStep, setActiveStep] = useState(0);
 
-  // ── form values ──────────────────────────────────────────────────────────────
   const [values, setValues] = useState<ContractFormValues>({
+    contractCode: '',
     contractTitle: '',
     vendor: null,
+    vendorId: null,
     contractType: null,
     category: null,
     description: '',
@@ -931,20 +851,74 @@ function AddorEditContract() {
     currency: 'INR',
   });
 
-  // ── validation error state ────────────────────────────────────────────────────
   const [errors, setErrors] = useState<FormErrors>({});
-
-  // ── file upload state ─────────────────────────────────────────────────────────
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
 
-  // ── success dialog state ──────────────────────────────────────────────────────
+  // Transform vendors from API to VendorOption format
+  const vendorOptions: VendorOption[] = vendors.map((vendor: Vendor) => ({
+    id: vendor.pk_chr_vendor_id,
+    name: vendor.chr_vendor_name,
+  }));
+
+  // ── SuccessDialog state — kept for potential future use (e.g. draft save) ──
   const [successOpen, setSuccessOpen] = useState(false);
 
-  // ── field change handler ──────────────────────────────────────────────────────
+  // Toast notification state
+  const [toast, setToast] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+
+  // ── Redirect-after-success timer ref — cleared on unmount to avoid leaks ──
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup redirect timer on component unmount
+  useEffect(
+    () => () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+      }
+    },
+    []
+  );
+
+  // ── Fetch vendors when component mounts ───────────────────────────────────
+  useEffect(() => {
+    if (vendors.length === 0 && !vendorsLoading) {
+      dispatch(fetchVendors());
+    }
+  }, [dispatch, vendors.length, vendorsLoading]);
+
+  // ── Effect: handle API error surfaced from Redux ───────────────────────────
+  useEffect(() => {
+    if (error) {
+      setToast({
+        open: true,
+        message: error,
+        severity: 'error',
+      });
+    }
+  }, [error]);
+
+  // ── Effect: handle vendor fetch errors ─────────────────────────────────────
+  useEffect(() => {
+    if (vendorsError) {
+      setToast({
+        open: true,
+        message: 'Failed to load vendors. Please refresh the page.',
+        severity: 'error',
+      });
+    }
+  }, [vendorsError]);
+
   const handleChange = useCallback((field: keyof ContractFormValues, value: string | null) => {
     setValues((prev) => ({ ...prev, [field]: value }));
-    // Clear field error on change
     setErrors((prev) => {
       const next = { ...prev };
       delete next[field];
@@ -952,7 +926,10 @@ function AddorEditContract() {
     });
   }, []);
 
-  // ── step navigation ───────────────────────────────────────────────────────────
+  const handleVendorChange = useCallback((vendorId: string | null, vendorName: string | null) => {
+    setValues((prev) => ({ ...prev, vendorId, vendor: vendorName }));
+  }, []);
+
   const handleNext = () => {
     const stepErrors = validateStep(activeStep, values);
     if (Object.keys(stepErrors).length > 0) {
@@ -968,19 +945,16 @@ function AddorEditContract() {
     setActiveStep((prev) => prev - 1);
   };
 
-  // ── file add handler — spec §4-D: PDF/DOCX, file size validation ─────────────
   const handleAddFiles = useCallback((fileList: FileList) => {
     setFileError(null);
     const newEntries: UploadedFile[] = [];
 
     Array.from(fileList).forEach((file) => {
-      // ── Spec §4-D: File type validation ──────────────────────────────────
       if (!ALLOWED_FILE_TYPES.includes(file.type)) {
         setFileError(`"${file.name}" is not allowed. Only PDF and DOCX files are accepted.`);
         return;
       }
 
-      // ── Spec §4-D: File size validation ───────────────────────────────────
       if (file.size > MAX_FILE_SIZE_BYTES) {
         setFileError(`"${file.name}" exceeds the 10 MB size limit.`);
         return;
@@ -994,8 +968,6 @@ function AddorEditContract() {
 
     setFiles((prev) => [...prev, ...newEntries]);
 
-    // ── Simulate upload progress per file — spec §4-D: Upload progress ───────
-    // TODO: replace with real multipart upload → dispatch(uploadDocument(file))
     newEntries.forEach(({ id }) => {
       const interval = setInterval(() => {
         setFiles((prev) =>
@@ -1016,43 +988,97 @@ function AddorEditContract() {
     setFiles((prev) => prev.filter((f) => f.id !== id));
   }, []);
 
-  // ── submit handlers — Save as Draft or Submit for Review ─────────────────────
+  // ── Submit handler ─────────────────────────────────────────────────────────
+  // On success: shows a toast with the new contract ID, then auto-redirects to
+  // the contract list after 3 seconds (per UX spec). On failure: shows an error
+  // toast; the page stays so the user can correct issues.
   const handleSubmit = async (submitType: 'draft' | 'review') => {
-    // Final validation across all steps
     const finalErrors = validateStep(3, values);
     if (Object.keys(finalErrors).length > 0) {
       setErrors(finalErrors);
       return;
     }
 
-    dispatch({ type: 'create/pending' });
+    if (!values.vendorId) {
+      setErrors({ vendor: 'Vendor is required' });
+      return;
+    }
+
+    const contractData: CreateContractRequest = {
+      contractCode: values.contractCode,
+      title: values.contractTitle,
+      description: values.description || '',
+      startDate: new Date(values.startDate).toISOString(),
+      endDate: new Date(values.endDate).toISOString(),
+      value: parseFloat(values.contractValue.replace(/,/g, '')),
+      vendorId: values.vendorId,
+    };
 
     try {
-      // TODO: replace with → await dispatch(createContract({ ...values, submitType })).unwrap()
-      const newId = await submitContractMock(values, submitType);
-      dispatch({ type: 'create/fulfilled', payload: newId });
-      setSuccessOpen(true);
+      const resultAction = await dispatch(createContract(contractData));
+
+      if (createContract.fulfilled.match(resultAction)) {
+        // ── Success path ────────────────────────────────────────────────────
+        const newContractId =
+          resultAction.payload?.pk_chr_contract_id ?? resultAction.payload?.id ?? '';
+
+        console.log('Contract created successfully:', resultAction.payload);
+
+        // Show success toast — stays visible for the duration of the countdown
+        setToast({
+          open: true,
+          message: `Contract ${newContractId ? `#${newContractId}` : ''} submitted successfully! Redirecting in 3 seconds…`,
+          severity: 'success',
+        });
+
+        // Auto-redirect to the previous page (contract list) after 3 seconds
+        redirectTimerRef.current = setTimeout(() => {
+          dispatch(clearCreateState());
+          router.push(paths.contract.root);
+        }, 3000);
+      } else {
+        // ── Failure path — rejected thunk ───────────────────────────────────
+        const errMsg =
+          (resultAction.payload as string) ||
+          resultAction.error?.message ||
+          'Contract submission failed. Please try again.';
+
+        console.error('Contract creation failed:', resultAction.payload);
+
+        setToast({
+          open: true,
+          message: errMsg,
+          severity: 'error',
+        });
+      }
     } catch (err) {
-      dispatch({
-        type: 'create/rejected',
-        payload: err instanceof Error ? err.message : 'Submission failed.',
+      // ── Unexpected/network error ─────────────────────────────────────────
+      console.error('Unexpected error:', err);
+      setToast({
+        open: true,
+        message: 'An unexpected error occurred. Please try again.',
+        severity: 'error',
       });
     }
   };
 
-  // ── success dialog action handlers ────────────────────────────────────────────
+  // ── Handlers for SuccessDialog (kept; dialog currently not auto-triggered) ─
   const handleViewContract = () => {
-    // TODO: router.push(paths.contract.detail(createdId!))
-    console.info('[ContractCreate] Navigate to detail:', createdId);
+    if (createdId) {
+      router.push(`${paths.contract.root}/${createdId}`);
+    }
     setSuccessOpen(false);
+    // Clear the create state to prevent showing success again
+    dispatch(clearCreateState());
   };
 
   const handleCreateAnother = () => {
     // Reset entire form for a new contract
-    dispatch({ type: 'create/reset' });
     setValues({
+      contractCode: '',
       contractTitle: '',
       vendor: null,
+      vendorId: null,
       contractType: null,
       category: null,
       description: '',
@@ -1061,27 +1087,42 @@ function AddorEditContract() {
       renewalDate: '',
       contractValue: '',
       currency: 'INR',
+      strHtmlContent: ''
     });
     setFiles([]);
     setErrors({});
     setActiveStep(0);
     setSuccessOpen(false);
+    // Clear the create state to prepare for new contract
+    dispatch(clearCreateState());
   };
 
   const handleBackToList = () => {
     router.push(paths.contract.root);
-    console.info('[ContractCreate] Navigate back to list');
     setSuccessOpen(false);
+    // Clear the create state
+    dispatch(clearCreateState());
   };
 
-  // ── review step errors (computed at review step entry) ────────────────────────
+  const handleCloseToast = () => {
+    setToast((prev) => ({ ...prev, open: false }));
+  };
+
   const reviewErrors = activeStep === 3 ? validateStep(3, values) : {};
 
-  // ── step content router ───────────────────────────────────────────────────────
   const renderStep = () => {
     switch (activeStep) {
       case 0:
-        return <StepBasicInfo values={values} errors={errors} onChange={handleChange} />;
+        return (
+          <StepBasicInfo
+            values={values}
+            errors={errors}
+            onChange={handleChange}
+            onVendorChange={handleVendorChange}
+            vendorOptions={vendorOptions}
+            vendorsLoading={vendorsLoading}
+          />
+        );
       case 1:
         return <StepDatesFinancial values={values} errors={errors} onChange={handleChange} />;
       case 2:
@@ -1094,16 +1135,22 @@ function AddorEditContract() {
           />
         );
       case 3:
-        return <StepReview values={values} files={files} errors={reviewErrors} />;
+        return <StepReview values={values} files={files} errors={reviewErrors} vendorOptions={vendorOptions} />;
       default:
         return null;
     }
   };
 
-  // ── main render ───────────────────────────────────────────────────────────────
   return (
     <Box>
-      {/* ── breadcrumb / page header ─────────────────────────────────────────── */}
+      {/* Toast Notification — shown on both success and error after submission */}
+      <ToastNotification
+        open={toast.open}
+        message={toast.message}
+        severity={toast.severity}
+        onClose={handleCloseToast}
+      />
+
       <Box mb={2}>
         {/*
           Replace the block below with:
@@ -1121,7 +1168,7 @@ function AddorEditContract() {
             <Stack direction="row" alignItems="center" spacing={0.5} mb={0.5}>
               <IconButton
                 size="small"
-                onClick={() => console.info('[ContractCreate] Back to list')}
+                onClick={() => router.push(paths.contract.root)}
                 sx={{ mr: 0.5 }}
               >
                 <ArrowBackIcon fontSize="small" />
@@ -1213,13 +1260,15 @@ function AddorEditContract() {
         </CardContent>
       </Card>
 
-      {/* ── Submission error banner ────────────────────────────────────────── */}
+      {/* ── Submission error banner — mirrors toast for in-page visibility ──── */}
       {error && (
         <Alert
           severity="error"
           icon={<ErrorOutlineIcon fontSize="small" />}
           sx={{ mb: 2 }}
-          onClose={() => dispatch({ type: 'create/reset' })}
+          onClose={() => {
+            dispatch(clearCreateState());
+          }}
         >
           {error}
         </Alert>
@@ -1246,19 +1295,6 @@ function AddorEditContract() {
 
         {/* Right-side actions */}
         <Stack direction="row" spacing={1}>
-          {/* Save as Draft — only on final step */}
-          {activeStep === STEPS.length - 1 && (
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={submitting ? <CircularProgress size={14} /> : <SaveOutlinedIcon />}
-              disabled={submitting}
-              onClick={() => handleSubmit('draft')}
-            >
-              Save as Draft
-            </Button>
-          )}
-
           {/* Next — steps 0-2 */}
           {activeStep < STEPS.length - 1 && (
             <Button
@@ -1290,7 +1326,7 @@ function AddorEditContract() {
         </Stack>
       </Stack>
 
-      {/* ── Success Dialog ─────────────────────────────────────────────────── */}
+      {/* ── SuccessDialog — retained for future use (e.g. draft confirmations) */}
       <SuccessDialog
         open={successOpen}
         contractId={createdId ?? ''}

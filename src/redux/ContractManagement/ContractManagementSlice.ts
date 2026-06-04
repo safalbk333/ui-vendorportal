@@ -5,6 +5,7 @@ import { axiosOptima } from 'src/lib/axios';
 // TYPES
 export interface Contract {
     pk_chr_contract_id: string;
+    chr_contract_code?: string; // Added this field based on response
     chr_title: string;
     txt_description: string;
     chr_status: string;
@@ -21,6 +22,7 @@ export interface Contract {
 }
 
 export interface CreateContractRequest {
+    contractCode: string;
     title: string;
     description: string;
     startDate: string;
@@ -35,6 +37,10 @@ interface ContractManagementState {
     error: string | null;
     creating: boolean;
     createError: string | null;
+    // New state for single contract fetch
+    currentContract: Contract | null;
+    fetchingContract: boolean;
+    fetchContractError: string | null;
 }
 
 const initialState: ContractManagementState = {
@@ -43,6 +49,9 @@ const initialState: ContractManagementState = {
     error: null,
     creating: false,
     createError: null,
+    currentContract: null,
+    fetchingContract: false,
+    fetchContractError: null,
 };
 
 // GET ALL CONTRACTS
@@ -63,25 +72,44 @@ export const fetchContracts = createAsyncThunk(
     }
 );
 
+// GET SINGLE CONTRACT BY ID (GET /contract/{id})
+export const fetchContractById = createAsyncThunk(
+    'contractManagement/fetchById',
+    async (contractId: string, { rejectWithValue }) => {
+        try {
+            const response = await axiosOptima.get(`/contract/${contractId}`);
+
+            console.log('Contract fetched successfully:', response.data);
+
+            // The API returns the contract data inside the data property
+            return response.data.data; // Returns the single contract object
+        } catch (error: any) {
+            return rejectWithValue(
+                error?.response?.data?.message || 'Failed to fetch contract'
+            );
+        }
+    }
+);
+
 // CREATE CONTRACT (POST /contract)
 export const createContract = createAsyncThunk(
     'contractManagement/create',
     async (contractData: CreateContractRequest, { rejectWithValue }) => {
         try {
             const payload = {
-                chr_title: contractData.title,
-                txt_description: contractData.description,
-                dt_start_date: contractData.startDate,
-                dt_end_date: contractData.endDate,
-                flt_value: contractData.value,
-                fk_chr_vendor_id: contractData.vendorId,
+                contractCode: contractData.contractCode,
+                title: contractData.title,
+                description: contractData.description,
+                startDate: contractData.startDate,
+                endDate: contractData.endDate,
+                value: contractData.value,
+                vendorId: contractData.vendorId,
                 chr_status: 'Draft',
                 chr_document_status: 'Pending',
+                // strHtmlContent removed as it's not in the provided request body
             };
 
-            const response = await axiosOptima.post('/contract',
-                payload
-            );
+            const response = await axiosOptima.post('/contract', payload);
 
             console.log('Contract created successfully:', response.data);
 
@@ -106,6 +134,11 @@ const contractManagementSlice = createSlice({
             state.creating = false;
             state.createError = null;
         },
+        // Clear current contract from state
+        clearCurrentContract: (state) => {
+            state.currentContract = null;
+            state.fetchContractError = null;
+        },
         // Optional: Add more reducers if needed (e.g., addContract, updateContract, etc.)
     },
     extraReducers: (builder) => {
@@ -122,6 +155,21 @@ const contractManagementSlice = createSlice({
             .addCase(fetchContracts.rejected, (state, action: any) => {
                 state.loading = false;
                 state.error = action.payload;
+            })
+
+            // Fetch Single Contract by ID
+            .addCase(fetchContractById.pending, (state) => {
+                state.fetchingContract = true;
+                state.fetchContractError = null;
+                state.currentContract = null;
+            })
+            .addCase(fetchContractById.fulfilled, (state, action) => {
+                state.fetchingContract = false;
+                state.currentContract = action.payload;
+            })
+            .addCase(fetchContractById.rejected, (state, action: any) => {
+                state.fetchingContract = false;
+                state.fetchContractError = action.payload;
             })
 
             // Create Contract
@@ -141,6 +189,6 @@ const contractManagementSlice = createSlice({
     },
 });
 
-export const { clearContracts, clearCreateState } = contractManagementSlice.actions;
+export const { clearContracts, clearCreateState, clearCurrentContract } = contractManagementSlice.actions;
 
 export default contractManagementSlice.reducer;

@@ -78,42 +78,79 @@ interface ContractRow {
   createdBy: string;
   daysToExpiry: number;
 }
+const mapContractToRow = (contract: Contract | null | undefined, index: number): ContractRow => {
 
-// ─────────────────────────────────────────────────────────────────────────────
-// UTILITY: Map API Contract → UI ContractRow
-// ─────────────────────────────────────────────────────────────────────────────
-const mapContractToRow = (contract: Contract, index: number): ContractRow => {
-  const endDate = new Date(contract.dt_end_date);
+  if (!contract) {
+    return {
+      id: index + 1,
+      contractId: 'N/A',
+      contractTitle: 'Invalid Contract',
+      vendor: 'Unknown Vendor',
+      category: 'N/A',
+      value: '₹0',
+      startDate: '—',
+      endDate: '—',
+      renewalDate: '—',
+      status: 'Draft',
+      createdBy: 'System',
+      daysToExpiry: 0,
+    };
+  }
+  
   const today = new Date();
-  const daysToExpiry = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 3600 * 24));
+
+  const endDate = contract.dt_end_date
+    ? new Date(contract.dt_end_date)
+    : null;
+
+  const startDate = contract.dt_start_date
+    ? new Date(contract.dt_start_date)
+    : null;
+
+  const daysToExpiry = endDate
+    ? Math.ceil(
+      (endDate.getTime() - today.getTime()) / (1000 * 3600 * 24)
+    )
+    : 0;
 
   return {
     id: index + 1,
-    contractId: contract.pk_chr_contract_id,
-    contractTitle: contract.chr_title,
-    vendor: contract.fk_chr_vendor_id, // TODO: Replace with vendor name if backend returns populated vendor
-    category: 'N/A', // Add category field in backend if needed
-    value: `₹${contract.flt_value.toLocaleString('en-IN')}`,
-    startDate: new Date(contract.dt_start_date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }),
-    endDate: new Date(contract.dt_end_date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    }),
-    renewalDate: contract.dt_end_date ? '—' : '—', // Update logic when renewal field is added
+
+    contractId: contract.pk_chr_contract_id || 'N/A',
+
+    contractTitle: contract.chr_title || 'Untitled Contract',
+
+    vendor: contract.fk_chr_vendor_id || 'Unknown Vendor',
+
+    category: 'N/A',
+
+    value: `₹${(contract.flt_value || 0).toLocaleString('en-IN')}`,
+
+    startDate: startDate
+      ? startDate.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      })
+      : '—',
+
+    endDate: endDate
+      ? endDate.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      })
+      : '—',
+
+    renewalDate: '—',
+
     status: (contract.chr_status as ContractStatus) || 'Draft',
+
     createdBy: contract.fk_chr_created_id || 'System',
+
     daysToExpiry,
   };
 };
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONSTANTS
-// ─────────────────────────────────────────────────────────────────────────────
 
 const EXPIRY_WARNING_DAYS = 30;
 
@@ -458,7 +495,7 @@ function ContractDashboard() {
   const dispatch = useAppDispatch();
 
   // Redux state
-  const { data: contracts, loading, error} = useAppSelector((state: RootState) => state.contractManagement);
+  const { data: contracts, loading, error } = useAppSelector((state: RootState) => state.contractManagement);
 
   const [rows, setRows] = useState<ContractRow[]>([]);
 
@@ -482,7 +519,9 @@ function ContractDashboard() {
   // ── Data Mapping & Loading ─────────────────────────────────────────────────
   useEffect(() => {
     if (contracts.length > 0) {
-      const mapped = contracts.map((contract: Contract, idx: number) => mapContractToRow(contract, idx));
+      const mapped = contracts
+        .filter((contract): contract is Contract => contract != null)
+        .map((contract, idx) => mapContractToRow(contract, idx));
       setRows(mapped);
     } else {
       setRows([]);
@@ -557,7 +596,7 @@ function ContractDashboard() {
 
   // ── Row Action Handlers ───────────────────────────────────────────────────
   const handleView = (row: ContractRow) => {
-    router.push(paths.contract.details);
+    router.push(paths.contract.details(row.contractId));
   };
 
   const handleEdit = (row: ContractRow) => {

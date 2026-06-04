@@ -18,8 +18,9 @@ import {
   Typography,
   CardContent,
 } from '@mui/material';
-import React, { useEffect, useReducer, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { alpha, useTheme } from '@mui/material/styles';
+import { useSearchParams } from 'next/navigation';
 
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import AttachFileOutlinedIcon from '@mui/icons-material/AttachFileOutlined';
@@ -39,10 +40,9 @@ import TimelineIcon from '@mui/icons-material/Timeline';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
-// ── replace these with your actual project imports ───────────────────────────
-// import PremiumBreadcrumbs from 'src/components/DynamicBreadcrumbs/page';
-// import { paths } from 'src/routes/paths';
-// import { useRouter } from 'next/navigation';
+// Redux imports
+import { useAppDispatch,useAppSelector } from 'src/redux/hooks';
+import { fetchContractById, clearCurrentContract, Contract } from 'src/redux/ContractManagement/ContractManagementSlice';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -122,180 +122,112 @@ interface ContractDetail {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REDUCER — mirrors RTK createSlice shape (same pattern as ContractDashboard)
+// HELPER FUNCTION: Transform API Contract to ContractDetail
 // ─────────────────────────────────────────────────────────────────────────────
 
-type ContractDetailAction =
-  | { type: 'contractDetail/fetchPending' }
-  | { type: 'contractDetail/fetchFulfilled'; payload: ContractDetail }
-  | { type: 'contractDetail/fetchRejected'; payload: string };
+/**
+ * Transforms the API contract data to the ContractDetail format expected by the UI
+ * @param apiContract - The contract data from the API
+ * @returns Transformed contract detail for UI consumption
+ */
+function transformApiContractToDetail(apiContract: Contract): ContractDetail {
+  // Format dates to readable format
+  const formatDate = (dateString: string): string => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
 
-interface ContractDetailState {
-  data: ContractDetail | null;
-  loading: boolean;
-  error: string | null;
-}
+  // Calculate days to expiry
+  const calculateDaysToExpiry = (endDate: string): number => {
+    if (!endDate) return 0;
+    const today = new Date();
+    const end = new Date(endDate);
+    const diffTime = end.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
 
-const initialState: ContractDetailState = {
-  data: null,
-  loading: false,
-  error: null,
-};
+  // Map API status to UI status
+  const mapStatus = (status: string): ContractStatus => {
+    switch (status?.toLowerCase()) {
+      case 'draft':
+        return 'Draft';
+      case 'under review':
+        return 'Under Review';
+      case 'approved':
+        return 'Approved';
+      case 'active':
+        return 'Active';
+      case 'expired':
+        return 'Expired';
+      case 'terminated':
+        return 'Terminated';
+      default:
+        return 'Draft';
+    }
+  };
 
-/** Local reducer — mirrors the shape of a real RTK createSlice reducer */
-function contractDetailReducer(
-  state: ContractDetailState,
-  action: ContractDetailAction
-): ContractDetailState {
-  switch (action.type) {
-    case 'contractDetail/fetchPending':
-      return { ...state, loading: true, error: null };
-    case 'contractDetail/fetchFulfilled':
-      return { ...state, loading: false, data: action.payload };
-    case 'contractDetail/fetchRejected':
-      return { ...state, loading: false, error: action.payload };
-    default:
-      return state;
-  }
-}
+  // Map document status
+  const mapDocStatus = (docStatus: string): DocumentStatus => {
+    switch (docStatus?.toUpperCase()) {
+      case 'PENDING':
+        return 'Pending';
+      case 'APPROVED':
+        return 'Approved';
+      case 'REJECTED':
+        return 'Rejected';
+      case 'EXPIRED':
+        return 'Expired';
+      default:
+        return 'Pending';
+    }
+  };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MOCK DATA — swap with real API call once endpoint is ready
-// ─────────────────────────────────────────────────────────────────────────────
+  const formatCurrency = (value: number): string =>
+    new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
 
-const MOCK_CONTRACT_DETAIL: ContractDetail = {
-  contractId: 'CON-2401',
-  contractTitle: 'IT Infrastructure Support Agreement',
-  vendor: 'TechNova Solutions',
-  contractType: 'Service Agreement',
-  description:
-    'Annual IT infrastructure support and maintenance agreement covering server uptime, network monitoring, helpdesk SLA, and quarterly hardware audits across all branch offices.',
-  status: 'Active',
-  category: 'IT Services',
-  createdBy: 'Arun Kumar',
-  startDate: '01 Jan 2024',
-  endDate: '31 Dec 2024',
-  renewalDate: '01 Dec 2024',
-  contractValue: '₹12,00,000',
-  currency: 'INR',
-  daysToExpiry: 8,
-  documents: [
-    {
-      id: 1,
-      fileName: 'CON-2401_MainAgreement_v1.pdf',
-      fileType: 'PDF',
-      uploadedBy: 'Arun Kumar',
-      uploadedAt: '02 Jan 2024',
-      version: 'v1.0',
-      status: 'Approved',
-      fileSizeKb: 842,
-    },
-    {
-      id: 2,
-      fileName: 'CON-2401_SLA_Annexure.pdf',
-      fileType: 'PDF',
-      uploadedBy: 'Arun Kumar',
-      uploadedAt: '02 Jan 2024',
-      version: 'v1.0',
-      status: 'Approved',
-      fileSizeKb: 310,
-    },
-    {
-      id: 3,
-      fileName: 'CON-2401_Amendment_Feb2024.docx',
-      fileType: 'DOCX',
-      uploadedBy: 'Sneha Raj',
-      uploadedAt: '15 Feb 2024',
-      version: 'v1.1',
-      status: 'Pending',
-      fileSizeKb: 128,
-    },
-  ],
-  approvalHistory: [
-    {
-      id: 1,
-      action: 'Submitted',
-      actor: 'Arun Kumar',
-      role: 'Procurement Officer',
-      date: '28 Dec 2023, 10:14 AM',
-      comments: 'Submitted for review. All documents attached.',
-    },
-    {
-      id: 2,
-      action: 'Approved',
-      actor: 'Anjali Menon',
-      role: 'Procurement Head',
-      date: '30 Dec 2023, 03:22 PM',
-      comments: 'Reviewed and approved. SLA terms are acceptable.',
-    },
-    {
-      id: 3,
-      action: 'Approved',
-      actor: 'Rajesh Varma',
-      role: 'Finance Controller',
-      date: '31 Dec 2023, 11:00 AM',
-      comments: 'Budget allocation confirmed. Contract value within approved limit.',
-    },
-  ],
-  amendmentHistory: [
-    {
-      id: 1,
-      amendmentNo: 'AMD-2401-01',
-      date: '15 Feb 2024',
-      reason: 'Scope extension to include 2 additional branch offices',
-      updatedFields: ['Contract Value', 'Scope of Work', 'SLA Coverage'],
-      amendedBy: 'Sneha Raj',
-    },
-  ],
-  auditTrail: [
-    {
-      id: 1,
-      action: 'Created',
-      performedBy: 'Arun Kumar',
-      date: '28 Dec 2023, 09:52 AM',
-      description: 'Contract CON-2401 created and saved as Draft.',
-    },
-    {
-      id: 2,
-      action: 'Uploaded',
-      performedBy: 'Arun Kumar',
-      date: '28 Dec 2023, 10:10 AM',
-      description: 'Main agreement PDF and SLA annexure uploaded.',
-    },
-    {
-      id: 3,
-      action: 'Updated',
-      performedBy: 'Arun Kumar',
-      date: '28 Dec 2023, 10:14 AM',
-      description: 'Status changed from Draft → Under Review.',
-    },
-    {
-      id: 4,
-      action: 'Approved',
-      performedBy: 'Anjali Menon',
-      date: '30 Dec 2023, 03:22 PM',
-      description: 'Level 1 approval granted by Procurement Head.',
-    },
-    {
-      id: 5,
-      action: 'Approved',
-      performedBy: 'Rajesh Varma',
-      date: '31 Dec 2023, 11:00 AM',
-      description: 'Level 2 approval granted. Contract moved to Active.',
-    },
-    {
-      id: 6,
-      action: 'Uploaded',
-      performedBy: 'Sneha Raj',
-      date: '15 Feb 2024, 02:30 PM',
-      description: 'Amendment document AMD-2401-01 uploaded.',
-    },
-  ],
-};
+  // Transform documents (if any - will need to be populated from API)
+  const documents: ContractDocument[] = []; // API currently doesn't return documents, this would come from a separate endpoint
 
-/** Simulates an async API call — swap for real endpoint later */
-function fetchContractDetailMock(_contractId: string): Promise<ContractDetail> {
-  return new Promise((resolve) => setTimeout(() => resolve(MOCK_CONTRACT_DETAIL), 1000));
+  // Transform approval history (if any - to be populated from API)
+  const approvalHistory: ApprovalHistoryEntry[] = []; // To be populated from API if available
+
+  // Transform amendment history (if any - to be populated from API)
+  const amendmentHistory: AmendmentHistoryEntry[] = []; // To be populated from API if available
+
+  // Transform audit trail (if any - to be populated from API)
+  const auditTrail: AuditEntry[] = []; // To be populated from API if available
+
+  return {
+    contractId: apiContract.chr_contract_code || apiContract.pk_chr_contract_id.slice(0, 8),
+    contractTitle: apiContract.chr_title,
+    vendor: apiContract.fk_chr_vendor_id, // This would need to be replaced with vendor name from a vendor lookup
+    contractType: 'Service Agreement', // Default - would come from API
+    description: apiContract.txt_description,
+    status: mapStatus(apiContract.chr_status),
+    category: 'General', // Default - would come from API
+    createdBy: apiContract.fk_chr_created_id || 'System', // Would need user details from another API
+    startDate: formatDate(apiContract.dt_start_date),
+    endDate: formatDate(apiContract.dt_end_date),
+    renewalDate: formatDate(apiContract.dt_end_date), // Assuming renewal date is same as end date for now
+    contractValue: formatCurrency(apiContract.flt_value),
+    currency: 'INR',
+    daysToExpiry: calculateDaysToExpiry(apiContract.dt_end_date),
+    documents,
+    approvalHistory,
+    amendmentHistory,
+    auditTrail,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -946,39 +878,53 @@ interface ContractDetailPageProps {
   contractId?: string;
 }
 
-function ContractDetailPage({ contractId = 'CON-2401' }: ContractDetailPageProps) {
+function ContractDetailPage({ contractId: propContractId }: ContractDetailPageProps) {
   const theme = useTheme();
   const PRIMARY = theme.palette.primary.main;
+  const searchParams = useSearchParams();
 
-  // ── replace these with your actual project imports ─────────────────────────
-  // const router    = useRouter();
-  // const dispatch  = useAppDispatch();
-  // const { data, loading, error } = useAppSelector((s) => s.contractDetail);
+  // Get contract ID from URL params if not provided as prop
+  const contractId = propContractId || searchParams.get('id');
 
-  // ── local Redux-mirror state (remove once real Redux slice is wired) ────────
-  const [state, dispatch] = useReducer(contractDetailReducer, initialState);
-  const { data, loading, error } = state;
+  // Redux state
+  const dispatch = useAppDispatch();
+  const { currentContract, fetchingContract, fetchContractError } = useAppSelector(
+    (state) => state.contractManagement
+  );
+
+  // Transform API contract data to UI format
+  const [transformedData, setTransformedData] = React.useState<ContractDetail | null>(null);
 
   // ── active tab ──────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = React.useState(0);
 
-  // ── data loading ─────────────────────────────────────────────────────────────
-  // Dispatches fetchPending → (mock fetch) → fetchFulfilled / fetchRejected.
-  // TODO: replace fetchContractDetailMock() with → dispatch(fetchContractDetail(contractId))
-  //       once the real RTK thunk is created in src/store/slices/contractDetailSlice
+  // ── data loading using Redux thunk ─────────────────────────────────────────────
   const loadDetail = useCallback(() => {
-    dispatch({ type: 'contractDetail/fetchPending' });
-
-    fetchContractDetailMock(contractId)
-      .then((detail) => dispatch({ type: 'contractDetail/fetchFulfilled', payload: detail }))
-      .catch((err: Error) =>
-        dispatch({ type: 'contractDetail/fetchRejected', payload: err.message })
-      );
-  }, [contractId]);
+    if (contractId) {
+      dispatch(fetchContractById(contractId));
+    }
+  }, [contractId, dispatch]);
 
   useEffect(() => {
-    loadDetail();
-  }, [loadDetail]);
+    if (contractId) {
+      loadDetail();
+    }
+
+    // Cleanup: clear current contract when component unmounts
+    return () => {
+      dispatch(clearCurrentContract());
+    };
+  }, [contractId, dispatch, loadDetail]);
+
+  // Transform data when currentContract changes
+  useEffect(() => {
+    if (currentContract) {
+      const transformed = transformApiContractToDetail(currentContract);
+      setTransformedData(transformed);
+    } else {
+      setTransformedData(null);
+    }
+  }, [currentContract]);
 
   // ── row action handlers ─────────────────────────────────────────────────────
   // Each handler will be wired to router.push / dispatch during API integration
@@ -1023,14 +969,14 @@ function ContractDetailPage({ contractId = 'CON-2401' }: ContractDetailPageProps
   ];
 
   // ── loading state ─────────────────────────────────────────────────────────────
-  if (loading) return <DetailSkeleton />;
+  if (fetchingContract) return <DetailSkeleton />;
 
   // ── error state ───────────────────────────────────────────────────────────────
-  if (error) {
+  if (fetchContractError) {
     return (
       <Box textAlign="center" py={6}>
         <Typography color="error" mb={2}>
-          Failed to load contract: {error}
+          Failed to load contract: {fetchContractError}
         </Typography>
         <Button variant="outlined" onClick={loadDetail}>
           Retry
@@ -1040,7 +986,7 @@ function ContractDetailPage({ contractId = 'CON-2401' }: ContractDetailPageProps
   }
 
   // ── empty state ───────────────────────────────────────────────────────────────
-  if (!data) {
+  if (!transformedData || !contractId) {
     return (
       <Box textAlign="center" py={8}>
         <AssignmentIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
@@ -1053,11 +999,11 @@ function ContractDetailPage({ contractId = 'CON-2401' }: ContractDetailPageProps
   }
 
   // ── expiry warning — spec §4-F ────────────────────────────────────────────────
-  const showExpiryWarning = data.daysToExpiry >= 0 && data.daysToExpiry <= EXPIRY_WARNING_DAYS;
+  const showExpiryWarning = transformedData.daysToExpiry >= 0 && transformedData.daysToExpiry <= EXPIRY_WARNING_DAYS;
 
   // ── action button visibility by status — spec §4-B / §4-F / §4-G ─────────────
-  const canEdit = data.status === 'Draft' || data.status === 'Under Review';
-  const canRenew = data.status === 'Active' || data.status === 'Expired';
+  const canEdit = transformedData.status === 'Draft' || transformedData.status === 'Under Review';
+  const canRenew = transformedData.status === 'Active' || transformedData.status === 'Expired';
 
   // ── main render ───────────────────────────────────────────────────────────────
   return (
@@ -1067,11 +1013,11 @@ function ContractDetailPage({ contractId = 'CON-2401' }: ContractDetailPageProps
         {/*
           Replace the block below with:
           <PremiumBreadcrumbs
-            title={data.contractId}
+            title={transformedData.contractId}
             paths={[
               { label: 'Home', href: '/dashboard' },
               { label: 'Contract Dashboard', href: '/contract-dashboard' },
-              { label: data.contractId, href: '#' },
+              { label: transformedData.contractId, href: '#' },
             ]}
             action={
               <>
@@ -1088,23 +1034,23 @@ function ContractDetailPage({ contractId = 'CON-2401' }: ContractDetailPageProps
         <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={1}>
           <Box>
             <Typography variant="body2" color="text.secondary" mb={0.5}>
-              Home &rsaquo; Contract Dashboard &rsaquo; {data.contractId}
+              Home &rsaquo; Contract Dashboard &rsaquo; {transformedData.contractId}
             </Typography>
             <Stack direction="row" alignItems="center" spacing={1.5}>
               <Typography variant="h6" fontWeight={700}>
-                {data.contractId}
+                {transformedData.contractId}
               </Typography>
               {/* Status badge in header — reusable per spec §8 */}
               <Chip
-                label={data.status}
+                label={transformedData.status}
                 size="small"
-                color={STATUS_COLOR[data.status]}
+                color={STATUS_COLOR[transformedData.status]}
                 variant="outlined"
                 sx={{ fontSize: 11, height: 22, fontWeight: 600 }}
               />
             </Stack>
             <Typography variant="body2" color="text.secondary" mt={0.3}>
-              {data.contractTitle}
+              {transformedData.contractTitle}
             </Typography>
           </Box>
 
@@ -1144,7 +1090,7 @@ function ContractDetailPage({ contractId = 'CON-2401' }: ContractDetailPageProps
           icon={<WarningAmberIcon fontSize="small" />}
           sx={{ mb: 2, fontSize: 12 }}
         >
-          This contract expires in <strong>{data.daysToExpiry} days</strong> ({data.endDate}).
+          This contract expires in <strong>{transformedData.daysToExpiry} days</strong> ({transformedData.endDate}).
           Initiate renewal now to avoid service disruption.
         </Alert>
       )}
@@ -1161,27 +1107,27 @@ function ContractDetailPage({ contractId = 'CON-2401' }: ContractDetailPageProps
           {
             icon: <BusinessOutlinedIcon sx={{ fontSize: 15 }} />,
             label: 'Vendor',
-            value: data.vendor,
+            value: transformedData.vendor,
           },
           {
             icon: <CalendarTodayOutlinedIcon sx={{ fontSize: 15 }} />,
             label: 'End Date',
-            value: data.endDate,
+            value: transformedData.endDate,
           },
           {
             icon: <CurrencyRupeeOutlinedIcon sx={{ fontSize: 15 }} />,
             label: 'Value',
-            value: data.contractValue,
+            value: transformedData.contractValue,
           },
           {
             icon: <DescriptionOutlinedIcon sx={{ fontSize: 15 }} />,
             label: 'Documents',
-            value: `${data.documents.length} file${data.documents.length !== 1 ? 's' : ''}`,
+            value: `${transformedData.documents.length} file${transformedData.documents.length !== 1 ? 's' : ''}`,
           },
           {
             icon: <TimelineIcon sx={{ fontSize: 15 }} />,
             label: 'Amendments',
-            value: `${data.amendmentHistory.length} amendment${data.amendmentHistory.length !== 1 ? 's' : ''}`,
+            value: `${transformedData.amendmentHistory.length} amendment${transformedData.amendmentHistory.length !== 1 ? 's' : ''}`,
           },
         ].map((item) => (
           <Card
@@ -1241,14 +1187,14 @@ function ContractDetailPage({ contractId = 'CON-2401' }: ContractDetailPageProps
 
       {/* ── Tab 0: Overview (Basic Info + Dates/Financial) ───────────────────── */}
       <TabPanel value={activeTab} index={0}>
-        <BasicInfoSection data={data} />
-        <DatesFinancialSection data={data} />
+        <BasicInfoSection data={transformedData} />
+        <DatesFinancialSection data={transformedData} />
       </TabPanel>
 
       {/* ── Tab 1: Documents — spec §4-C §3 ──────────────────────────────────── */}
       <TabPanel value={activeTab} index={1}>
         <DocumentsSection
-          documents={data.documents}
+          documents={transformedData.documents}
           onUpload={handleUploadDocument}
           onDownload={handleDownloadDocument}
           onView={handleViewDocument}
@@ -1258,17 +1204,17 @@ function ContractDetailPage({ contractId = 'CON-2401' }: ContractDetailPageProps
 
       {/* ── Tab 2: Approval History — spec §4-C §4 ───────────────────────────── */}
       <TabPanel value={activeTab} index={2}>
-        <ApprovalHistorySection history={data.approvalHistory} />
+        <ApprovalHistorySection history={transformedData.approvalHistory} />
       </TabPanel>
 
       {/* ── Tab 3: Amendment History — spec §4-C §5 ──────────────────────────── */}
       <TabPanel value={activeTab} index={3}>
-        <AmendmentHistorySection amendments={data.amendmentHistory} />
+        <AmendmentHistorySection amendments={transformedData.amendmentHistory} />
       </TabPanel>
 
       {/* ── Tab 4: Audit Trail — spec §4-C §6 ────────────────────────────────── */}
       <TabPanel value={activeTab} index={4}>
-        <AuditTrailSection auditTrail={data.auditTrail} />
+        <AuditTrailSection auditTrail={transformedData.auditTrail} />
       </TabPanel>
     </Box>
   );

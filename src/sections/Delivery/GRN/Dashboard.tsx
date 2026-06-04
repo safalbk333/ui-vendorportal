@@ -22,14 +22,17 @@ import { GridToolbar, useGridSelector } from '@mui/x-data-grid/internals';
 import { alpha, useTheme } from '@mui/material/styles';
 
 import PremiumBreadcrumbs from 'src/components/DynamicBreadcrumbs/page';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+
+import { fetchGoodsReceipts } from 'src/redux/GoodsReceiptService/GoodsReceiptSlice';
+import type { GoodsReceipt } from 'src/redux/GoodsReceiptService/GoodsReceiptSlice';
+import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
 
 function CustomFooter() {
   const apiRef = useGridApiContext();
 
   const paginationModel = useGridSelector(apiRef, gridPaginationModelSelector);
-
   const pageCount = useGridSelector(apiRef, gridPageCountSelector);
 
   return (
@@ -61,8 +64,56 @@ function CustomFooter() {
 function VendorGRNDetails() {
   const theme = useTheme();
   const router = useRouter();
+  const dispatch = useAppDispatch();
 
   const PRIMARY = theme.palette.primary.main;
+
+  // Redux State
+  const { data: goodsReceipts, loading, error } = useAppSelector(
+    (state: any) => state.goodsReceipt
+  );
+
+  // Fetch Goods Receipts on Component Mount
+  useEffect(() => {
+    dispatch(fetchGoodsReceipts());
+  }, [dispatch]);
+
+  // Transform API data to DataGrid rows
+  const rows = React.useMemo(
+    () =>
+      goodsReceipts.map((gr: GoodsReceipt) => {
+        const totalReceived = gr.goods_receipt_items.reduce(
+          (sum, item) => sum + item.int_quantity_received,
+          0
+        );
+        const totalAccepted = gr.goods_receipt_items.reduce(
+          (sum, item) => sum + (item.int_quantity_received - item.int_quantity_rejected),
+          0
+        );
+        const totalRejected = gr.goods_receipt_items.reduce(
+          (sum, item) => sum + item.int_quantity_rejected,
+          0
+        );
+
+        return {
+          id: gr.pk_chr_goods_receipt_id,
+          grnNumber: gr.chr_grn_code,
+          poNumber: gr.purchase_order.chr_po_number,
+          // buyerName: 'N/A', // Vendor info not available in current API response
+          asnNumber: gr.chr_delivery_note_no || 'N/A',
+          receivedDate: new Date(gr.dt_received_at).toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          }),
+          // warehouse: 'N/A', // Warehouse info not available in current API
+          receivedQty: totalReceived,
+          acceptedQty: totalAccepted,
+          rejectedQty: totalRejected,
+          status: gr.chr_status === 'PENDING' ? 'Pending Inspection' : gr.chr_status,
+        };
+      }),
+    [goodsReceipts]);
 
   const columns: GridColDef[] = [
     {
@@ -75,11 +126,11 @@ function VendorGRNDetails() {
       headerName: 'PO Number',
       flex: 1,
     },
-    {
-      field: 'buyerName',
-      headerName: 'Buyer',
-      flex: 1.4,
-    },
+    // {
+    //   field: 'buyerName',
+    //   headerName: 'Buyer',
+    //   flex: 1.4,
+    // },
     {
       field: 'asnNumber',
       headerName: 'ASN Number',
@@ -90,11 +141,11 @@ function VendorGRNDetails() {
       headerName: 'Received Date',
       flex: 1,
     },
-    {
-      field: 'warehouse',
-      headerName: 'Warehouse',
-      flex: 1.1,
-    },
+    // {
+    //   field: 'warehouse',
+    //   headerName: 'Warehouse',
+    //   flex: 1.1,
+    // },
     {
       field: 'receivedQty',
       headerName: 'Received Qty',
@@ -136,61 +187,6 @@ function VendorGRNDetails() {
           />
         );
       },
-    },
-  ];
-
-  const rows = [
-    {
-      id: 1,
-      grnNumber: 'GRN-5001',
-      poNumber: 'PO-2026-1001',
-      buyerName: 'ABC Manufacturing Pvt Ltd',
-      asnNumber: 'ASN-9001',
-      receivedDate: '12 May 2026',
-      warehouse: 'Chennai WH',
-      receivedQty: 120,
-      acceptedQty: 118,
-      rejectedQty: 2,
-      status: 'Partially Accepted',
-    },
-    {
-      id: 2,
-      grnNumber: 'GRN-5002',
-      poNumber: 'PO-2026-1005',
-      buyerName: 'Zen Industrial Group',
-      asnNumber: 'ASN-9002',
-      receivedDate: '10 May 2026',
-      warehouse: 'Mumbai Hub',
-      receivedQty: 85,
-      acceptedQty: 85,
-      rejectedQty: 0,
-      status: 'Accepted',
-    },
-    {
-      id: 3,
-      grnNumber: 'GRN-5003',
-      poNumber: 'PO-2026-1008',
-      buyerName: 'GreenLeaf Enterprises',
-      asnNumber: 'ASN-9003',
-      receivedDate: '15 May 2026',
-      warehouse: 'Bangalore DC',
-      receivedQty: 60,
-      acceptedQty: 0,
-      rejectedQty: 0,
-      status: 'Pending Inspection',
-    },
-    {
-      id: 4,
-      grnNumber: 'GRN-5004',
-      poNumber: 'PO-2026-1010',
-      buyerName: 'Prime Tech Solutions',
-      asnNumber: 'ASN-9004',
-      receivedDate: '18 May 2026',
-      warehouse: 'Delhi WH',
-      receivedQty: 40,
-      acceptedQty: 0,
-      rejectedQty: 40,
-      status: 'Rejected',
     },
   ];
 
@@ -275,6 +271,7 @@ function VendorGRNDetails() {
           <DataGrid
             rows={rows}
             columns={columns}
+            loading={loading}
             autoHeight
             pageSizeOptions={[5, 10]}
             disableColumnFilter
@@ -282,7 +279,7 @@ function VendorGRNDetails() {
             disableColumnMenu
             disableColumnSelector
             onRowClick={(params) => {
-              router.push(`/delivery/grn/details?${params.id}`);
+              router.push(`/delivery/grn/details/details?id=${params.id}`);
             }}
             slots={{
               toolbar: GridToolbar,
@@ -336,6 +333,13 @@ function VendorGRNDetails() {
           />
         </Box>
       </Box>
+
+      {/* Error Message */}
+      {error && (
+        <Typography color="error" sx={{ mt: 2 }}>
+          Error: {error}
+        </Typography>
+      )}
     </Box>
   );
 }

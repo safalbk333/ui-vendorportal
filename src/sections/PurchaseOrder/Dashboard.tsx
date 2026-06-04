@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Box,
   Chip,
@@ -28,6 +28,10 @@ import { GridToolbar, useGridSelector } from '@mui/x-data-grid/internals';
 import { useRouter } from 'next/navigation';
 
 import PremiumBreadcrumbs from 'src/components/DynamicBreadcrumbs/page';
+
+// Redux Imports
+import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
+import { fetchPurchaseOrders } from 'src/redux/PurchaseOrder/PurchaseOrderSlice';
 
 function CustomFooter() {
   const apiRef = useGridApiContext();
@@ -62,11 +66,31 @@ function CustomFooter() {
   );
 }
 
+// Helper function to determine status
+const getStatusLabel = (docStatus: string, quotationStatus?: string): string => {
+  if (docStatus === 'D' || quotationStatus === 'DRAFT') return 'Draft';
+  if (docStatus === 'A') return 'Acknowledged';
+  if (docStatus === 'P') return 'Pending';
+  if (docStatus === 'C') return 'Closed';
+  if (docStatus === 'R') return 'Rejected';
+  return 'Open';
+};
+
 function PurchaseOrderDashboard() {
   const theme = useTheme();
   const router = useRouter();
 
+  const dispatch = useAppDispatch();
+  const { data: purchaseOrders, loading, error } = useAppSelector(
+    (state) => state.purchaseOrder
+  );
+
   const PRIMARY = theme.palette.primary.main;
+
+  // Fetch purchase orders on component mount
+  useEffect(() => {
+    dispatch(fetchPurchaseOrders());
+  }, [dispatch]);
 
   const columns: GridColDef[] = [
     {
@@ -123,6 +147,7 @@ function PurchaseOrderDashboard() {
         if (params.value === 'Pending') color = 'warning';
         if (params.value === 'Closed') color = 'default';
         if (params.value === 'Rejected') color = 'error';
+        if (params.value === 'Draft') color = 'default';
 
         return (
           <Chip
@@ -140,55 +165,26 @@ function PurchaseOrderDashboard() {
     },
   ];
 
-  const rows = [
-    {
-      id: 1,
-      poNo: 'PO-2026-1001',
-      title: 'Dell Latitude Laptop Procurement',
-      category: 'IT Equipment',
-      poDate: '01 May 2026',
-      deliveryDate: '10 May 2026',
-      buyer: 'Procurement Team',
-      amount: '$24,500',
-      status: 'Open',
-    },
-
-    {
-      id: 2,
-      poNo: 'PO-2026-1002',
-      title: 'Office Workstation Chairs',
-      category: 'Furniture',
-      poDate: '28 Apr 2026',
-      deliveryDate: '08 May 2026',
-      buyer: 'Admin Department',
-      amount: '$8,200',
-      status: 'Acknowledged',
-    },
-
-    {
-      id: 3,
-      poNo: 'PO-2026-1003',
-      title: 'Warehouse Transportation Services',
-      category: 'Logistics',
-      poDate: '26 Apr 2026',
-      deliveryDate: '06 May 2026',
-      buyer: 'Supply Chain',
-      amount: '$14,000',
-      status: 'Pending',
-    },
-
-    {
-      id: 4,
-      poNo: 'PO-2026-1004',
-      title: 'Industrial Safety Kits',
-      category: 'Safety',
-      poDate: '24 Apr 2026',
-      deliveryDate: '04 May 2026',
-      buyer: 'Operations',
-      amount: '$6,750',
-      status: 'Rejected',
-    },
-  ];
+  // Transform API data to match DataGrid rows
+  const rows = purchaseOrders.map((po) => ({
+    id: po.pk_chr_purchase_order_id,
+    poNo: po.chr_po_number,
+    title: po.request?.chr_title || 'N/A',
+    category: 'General', // Category not available in current API response
+    poDate: new Date(po.dt_issued_at).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }),
+    deliveryDate: new Date(po.dt_expected_delivery).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }),
+    buyer: po.vendor?.chr_vendor_name || 'N/A',
+    amount: `${po.chr_currency} ${po.flt_total_value ? po.flt_total_value.toLocaleString() : '0'}`,
+    status: getStatusLabel(po.chr_document_status, po.quotation?.chr_status),
+  }));
 
   return (
     <Box>
@@ -223,14 +219,14 @@ function PurchaseOrderDashboard() {
 
           <Autocomplete
             size="small"
-            options={['Open', 'Acknowledged', 'Pending', 'Closed', 'Rejected']}
+            options={['Open', 'Acknowledged', 'Pending', 'Closed', 'Rejected', 'Draft']}
             sx={{ minWidth: 200 }}
             renderInput={(params) => <TextField {...params} label="Status" />}
           />
 
           <Autocomplete
             size="small"
-            options={['IT Equipment', 'Furniture', 'Logistics', 'Safety']}
+            options={['IT Equipment', 'Furniture', 'Logistics', 'Safety', 'General']}
             sx={{ minWidth: 200 }}
             renderInput={(params) => <TextField {...params} label="Category" />}
           />
@@ -262,7 +258,7 @@ function PurchaseOrderDashboard() {
 
       {/* Table */}
 
-      <Box sx={{ borderRadius: 2 ,mt:-1}}>
+      <Box sx={{ borderRadius: 2, mt: -1 }}>
         <Box
           sx={{
             borderRadius: 2,
@@ -277,6 +273,7 @@ function PurchaseOrderDashboard() {
           <DataGrid
             rows={rows}
             columns={columns}
+            loading={loading}
             autoHeight
             pageSizeOptions={[5, 10]}
             disableColumnFilter
@@ -295,7 +292,7 @@ function PurchaseOrderDashboard() {
               },
             }}
             onRowClick={(params) => {
-              router.push(`/purchase_orders/details`);
+              router.push(`/purchase_orders/details/${params.row.id}`);
             }}
             initialState={{
               pagination: {
@@ -349,6 +346,12 @@ function PurchaseOrderDashboard() {
           />
         </Box>
       </Box>
+
+      {error && (
+        <Typography color="error" sx={{ mt: 2, textAlign: 'center' }}>
+          Error: {error}
+        </Typography>
+      )}
     </Box>
   );
 }

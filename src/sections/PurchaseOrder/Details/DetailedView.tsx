@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -24,7 +24,12 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
-const PurchaseOrderCard = () => (
+import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
+import { fetchPurchaseOrderById, clearSelectedPurchaseOrder } from 'src/redux/PurchaseOrder/PurchaseOrderSlice';
+import { useSearchParams } from 'next/navigation';
+import { RootState } from 'src/redux/store';
+
+const PurchaseOrderCard = ({ purchaseOrder }: { purchaseOrder: any }) => (
   <Box
     sx={{
       borderBottom: '1px solid #e4e7ec',
@@ -45,7 +50,7 @@ const PurchaseOrderCard = () => (
               color: '#1f2937',
             }}
           >
-            PO-2024-001
+            {purchaseOrder?.chr_po_number || 'PO-XXXX-XXXX'}
           </Typography>
 
           <Box
@@ -76,22 +81,34 @@ const PurchaseOrderCard = () => (
           {[
             {
               label: 'Buyer',
-              value: 'GlobalLink Corp',
+              value: purchaseOrder?.vendor?.chr_vendor_name || 'N/A',
               color: '#344054',
             },
             {
               label: 'Total Value',
-              value: '$12,400.00',
+              value: `${purchaseOrder?.chr_currency || 'USD'} ${purchaseOrder?.flt_total_value?.toLocaleString() || '0.00'}`,
               color: '#3b5ccc',
             },
             {
               label: 'Issue Date',
-              value: '12 May 2026',
+              value: purchaseOrder?.dt_issued_at 
+                ? new Date(purchaseOrder.dt_issued_at).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                : 'N/A',
               color: '#344054',
             },
             {
               label: 'Delivery Date',
-              value: '25 May 2026',
+              value: purchaseOrder?.dt_expected_delivery 
+                ? new Date(purchaseOrder.dt_expected_delivery).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })
+                : 'N/A',
               color: '#d97706',
             },
           ].map((item) => (
@@ -137,9 +154,30 @@ const PurchaseOrderCard = () => (
 );
 
 function DetailedView() {
+  const dispatch = useAppDispatch();
+  const searchParams = useSearchParams();
+  
+  const { selectedPurchaseOrder, detailLoading, detailError } = useAppSelector(
+    (state: RootState) => state.purchaseOrder
+  );
+
   const [open, setOpen] = useState(false);
   const [decision, setDecision] = useState<'agree' | 'disagree' | ''>('');
   const [clarification, setClarification] = useState('');
+
+  const id = searchParams.get('id'); // Get ID from URL query params
+
+  // Fetch purchase order details when ID is available
+  useEffect(() => {
+    if (id) {
+      dispatch(fetchPurchaseOrderById(id));
+    }
+
+    // Cleanup on unmount
+    return () => {
+      dispatch(clearSelectedPurchaseOrder());
+    };
+  }, [dispatch, id]);
 
   const handleClose = () => {
     setOpen(false);
@@ -178,7 +216,6 @@ function DetailedView() {
                   px: 2.5,
                   height: 40,
                   fontWeight: 700,
-
                 }}
               >
                 Acknowledge PO
@@ -190,54 +227,70 @@ function DetailedView() {
 
       <Box mb={2} sx={{ borderTop: '1px dashed #d1d5db' }} />
 
-      {/* Layout */}
-      <Box
-        sx={{
-          display: 'flex',
-          gap: 2,
-          alignItems: 'flex-start',
-          flexDirection: {
-            xs: 'column',
-            lg: 'row',
-          },
-        }}
-      >
-        {/* Left */}
+      {/* Loading State */}
+      {detailLoading && (
+        <Typography align="center" sx={{ py: 4 }}>
+          Loading purchase order details...
+        </Typography>
+      )}
+
+      {/* Error State */}
+      {detailError && (
+        <Typography color="error" align="center" sx={{ py: 4 }}>
+          Error: {detailError}
+        </Typography>
+      )}
+
+      {/* Main Content - Only show when data is loaded */}
+      {!detailLoading && selectedPurchaseOrder && (
         <Box
           sx={{
-            flex: {
-              lg: '0 0 70%',
+            display: 'flex',
+            gap: 2,
+            alignItems: 'flex-start',
+            flexDirection: {
+              xs: 'column',
+              lg: 'row',
             },
-            width: '100%',
-            minWidth: 0,
           }}
         >
-          <PurchaseOrderCard />
+          {/* Left */}
+          <Box
+            sx={{
+              flex: {
+                lg: '0 0 70%',
+              },
+              width: '100%',
+              minWidth: 0,
+            }}
+          >
+            <PurchaseOrderCard purchaseOrder={selectedPurchaseOrder} />
 
-          <Box mt={2}>
-            <LineItemsTable />
+            <Box mt={2}>
+              <LineItemsTable />
+            </Box>
+
+            <PurchaseOrderTracker />
           </Box>
 
-          <PurchaseOrderTracker />
-        </Box>
+          {/* Right */}
+          <Box
+            sx={{
+              flex: {
+                lg: '0 0 30%',
+              },
+              width: '100%',
+              minWidth: 280,
+              position: 'sticky',
+              top: 20,
+            }}
+          >
+            <ContactCard />
 
-        {/* Right */}
-        <Box
-          sx={{
-            flex: {
-              lg: '0 0 30%',
-            },
-            width: '100%',
-            minWidth: 280,
-            position: 'sticky',
-            top: 20,
-          }}
-        >
-          <ContactCard />
-
-          <POSupportingDocsBox />
+            <POSupportingDocsBox />
+          </Box>
         </Box>
-      </Box>
+      )}
 
       {/* ACKNOWLEDGE POPUP */}
       <Dialog
@@ -334,7 +387,7 @@ function DetailedView() {
                     color: '#111827',
                   }}
                 >
-                  PO-2024-001
+                  {selectedPurchaseOrder?.chr_po_number || 'PO-XXXX-XXXX'}
                 </Typography>
               </Box>
 
@@ -358,7 +411,7 @@ function DetailedView() {
                     color: '#4f46e5',
                   }}
                 >
-                  $12,400.00
+                  {`${selectedPurchaseOrder?.chr_currency || 'USD'} ${selectedPurchaseOrder?.flt_total_value?.toLocaleString() || '0.00'}`}
                 </Typography>
               </Box>
             </Stack>
@@ -514,7 +567,7 @@ function DetailedView() {
             <Button
               variant="contained"
               onClick={handleSubmit}
-              color='primary'
+              color="primary"
               sx={{
                 textTransform: 'none',
                 borderRadius: '9px',

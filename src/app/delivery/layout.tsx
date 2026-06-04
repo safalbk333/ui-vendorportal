@@ -1,8 +1,10 @@
-
 import { CONFIG } from 'src/global-config';
+
 import { DashboardLayout } from 'src/layouts/dashboard';
 
 import { AuthGuard } from 'src/auth/guard';
+
+import ReduxProvider from 'src/redux/provider';
 
 // ----------------------------------------------------------------------
 
@@ -12,15 +14,18 @@ type Props = {
 
 export default function Layout({ children }: Props) {
   if (CONFIG.auth.skip) {
-    return <DashboardLayout>{children}</DashboardLayout>;
+    return (
+      <ReduxProvider>
+        <DashboardLayout>{children}</DashboardLayout>
+      </ReduxProvider>
+    );
   }
 
   return (
-    <AuthGuard>
-      <DashboardLayout>
-        {children}
-        </DashboardLayout>
-    </AuthGuard>
+    <ReduxProvider>
+      <AuthGuard>
+        <DashboardLayout>{children}</DashboardLayout>
+      </AuthGuard>
+    </ReduxProvider>
   );
 }
-
