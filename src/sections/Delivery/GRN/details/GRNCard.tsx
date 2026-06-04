@@ -1,11 +1,47 @@
 'use client';
 
-import { Box, Paper, Stack, Button, Divider, Typography } from '@mui/material';
+import { Box, Paper, Stack, Button, Chip, Divider, Typography } from '@mui/material';
 
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import React from 'react';
 
-export default function GrnCard() {
+import type { GoodsReceipt } from 'src/redux/GoodsReceiptService/GoodsReceiptSlice';
+
+type GrnCardProps = {
+  goodsReceipt: GoodsReceipt;
+};
+
+// ==================== HELPER: Format date string ====================
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  });
+}
+
+// ==================== HELPER: Map status string to Chip color ====================
+function getStatusColor(
+  status: string
+): 'default' | 'success' | 'warning' | 'error' | 'info' | 'primary' {
+  switch (status?.toLowerCase()) {
+    case 'completed':
+    case 'approved':
+      return 'success';
+    case 'pending':
+      return 'warning';
+    case 'rejected':
+      return 'error';
+    case 'draft':
+      return 'default';
+    default:
+      return 'info';
+  }
+}
+
+export default function GrnCard({ goodsReceipt }: GrnCardProps) {
   return (
     <Paper
       elevation={0}
@@ -28,6 +64,7 @@ export default function GrnCard() {
           >
             <Stack direction="row" spacing={1.2} alignItems="center">
               <Box>
+                {/* GRN Code — from API: chr_grn_code */}
                 <Typography
                   sx={{
                     fontSize: '14px',
@@ -35,7 +72,7 @@ export default function GrnCard() {
                     lineHeight: 1.2,
                   }}
                 >
-                  GRN-2023-8841
+                  {goodsReceipt.chr_grn_code || '—'}
                 </Typography>
 
                 <Typography
@@ -49,13 +86,26 @@ export default function GrnCard() {
                 </Typography>
               </Box>
             </Stack>
+
+            {/* Status Chip — from API: chr_status */}
+            <Chip
+              label={goodsReceipt.chr_status || 'Unknown'}
+              color={getStatusColor(goodsReceipt.chr_status)}
+              size="small"
+              sx={{
+                fontSize: 11,
+                fontWeight: 600,
+                height: 22,
+                textTransform: 'capitalize',
+              }}
+            />
           </Stack>
 
           <Divider sx={{ my: 1.5 }} />
 
           {/* Info Grid */}
           <Stack direction="row" flexWrap="wrap" gap={2.5}>
-            {/* Shipment */}
+            {/* PO Number — from API: purchase_order.chr_po_number */}
             <Stack direction="row" spacing={0.9} alignItems="center">
               <Box>
                 <Typography
@@ -68,7 +118,7 @@ export default function GrnCard() {
                     lineHeight: 1,
                   }}
                 >
-                  Shipment Ref
+                  PO Number
                 </Typography>
 
                 <Typography
@@ -78,12 +128,40 @@ export default function GrnCard() {
                     mt: 0.3,
                   }}
                 >
-                  SHP-OC-3310
+                  {goodsReceipt.purchase_order?.chr_po_number || '—'}
                 </Typography>
               </Box>
             </Stack>
 
-            {/* Date */}
+            {/* Delivery Note — from API: chr_delivery_note_no */}
+            <Stack direction="row" spacing={0.9} alignItems="center">
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: '10px',
+                    color: '#94A3B8',
+                    fontWeight: 700,
+                    letterSpacing: '0.5px',
+                    textTransform: 'uppercase',
+                    lineHeight: 1,
+                  }}
+                >
+                  Delivery Note
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    mt: 0.3,
+                  }}
+                >
+                  {goodsReceipt.chr_delivery_note_no || '—'}
+                </Typography>
+              </Box>
+            </Stack>
+
+            {/* Received On — from API: dt_received_at */}
             <Stack direction="row" spacing={0.9} alignItems="center">
               <Box>
                 <Typography
@@ -106,14 +184,72 @@ export default function GrnCard() {
                     mt: 0.3,
                   }}
                 >
-                  Oct 24, 2023
+                  {formatDate(goodsReceipt.dt_received_at)}
+                </Typography>
+              </Box>
+            </Stack>
+
+            {/* Document Status — from API: chr_document_status */}
+            <Stack direction="row" spacing={0.9} alignItems="center">
+              <Box>
+                <Typography
+                  sx={{
+                    fontSize: '10px',
+                    color: '#94A3B8',
+                    fontWeight: 700,
+                    letterSpacing: '0.5px',
+                    textTransform: 'uppercase',
+                    lineHeight: 1,
+                  }}
+                >
+                  Doc Status
+                </Typography>
+
+                <Typography
+                  sx={{
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    mt: 0.3,
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {goodsReceipt.chr_document_status || '—'}
                 </Typography>
               </Box>
             </Stack>
           </Stack>
+
+          {/* Notes — from API: txt_notes (only shown if present) */}
+          {goodsReceipt.txt_notes && (
+            <>
+              <Divider sx={{ my: 1.5 }} />
+              <Typography
+                sx={{
+                  fontSize: '12px',
+                  color: '#64748B',
+                  lineHeight: 1.5,
+                }}
+              >
+                <Box
+                  component="span"
+                  sx={{
+                    fontWeight: 700,
+                    color: '#94A3B8',
+                    fontSize: '10px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    mr: 0.8,
+                  }}
+                >
+                  Notes:
+                </Box>
+                {goodsReceipt.txt_notes}
+              </Typography>
+            </>
+          )}
         </Box>
 
-        {/* RIGHT */}
+        {/* RIGHT — Action Buttons */}
         <Stack direction={{ xs: 'row', sm: 'row' }} spacing={1} alignItems="center">
           <Button
             variant="outlined"

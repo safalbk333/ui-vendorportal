@@ -7,7 +7,37 @@ import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import MailOutlineOutlinedIcon from '@mui/icons-material/MailOutlineOutlined';
 import React from 'react';
 
-function WarehouseLocationCard() {
+import type { GoodsReceipt } from 'src/redux/GoodsReceiptService/GoodsReceiptSlice';
+
+type WarehouseLocationCardProps = {
+  goodsReceipt: GoodsReceipt;
+};
+
+// ==================== HELPER: Generate initials from a name string ====================
+function getInitials(name: string): string {
+  if (!name) return '??';
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function WarehouseLocationCard({ goodsReceipt }: WarehouseLocationCardProps) {
+  // ==================== DATA: Extract created_by ID for display ====================
+  // The API provides fk_chr_created_id (creator ID) and fk_chr_modified_id (modifier ID)
+  // We use fk_chr_created_id as the responsible person reference.
+  // If a full user object is not nested, fallback gracefully.
+  const creatorId = goodsReceipt.fk_chr_created_id ?? '—';
+
+  // ==================== DATA: Purchase order reference for location context ====================
+  const poNumber = goodsReceipt.purchase_order?.chr_po_number ?? '—';
+
+  // ==================== DATA: Document & Receipt metadata ====================
+  const grnCode = goodsReceipt.chr_grn_code ?? '—';
+  const deliveryNote = goodsReceipt.chr_delivery_note_no ?? '—';
+
   return (
     <Paper
       elevation={0}
@@ -17,7 +47,7 @@ function WarehouseLocationCard() {
         border: '1px solid #DDE3EA',
       }}
     >
-      {/* Top Section */}
+      {/* ==================== Top Section: Receipt Reference ==================== */}
       <Box
         sx={{
           p: 2,
@@ -53,9 +83,10 @@ function WarehouseLocationCard() {
                 lineHeight: 1.2,
               }}
             >
-              Warehouse Location
+              Receipt Reference
             </Typography>
 
+            {/* GRN Code — from API: chr_grn_code */}
             <Typography
               sx={{
                 fontSize: 13,
@@ -64,13 +95,35 @@ function WarehouseLocationCard() {
                 mt: 0.3,
               }}
             >
-              Rotterdam Terminal 3
+              {grnCode}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* PO Number — from API: purchase_order.chr_po_number */}
+        <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'space-between' }}>
+          <Box>
+            <Typography sx={{ fontSize: 10, color: '#94A3B8', fontWeight: 700, letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+              PO Reference
+            </Typography>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#374151', mt: 0.2 }}>
+              {poNumber}
+            </Typography>
+          </Box>
+
+          {/* Delivery Note — from API: chr_delivery_note_no */}
+          <Box>
+            <Typography sx={{ fontSize: 10, color: '#94A3B8', fontWeight: 700, letterSpacing: '0.4px', textTransform: 'uppercase' }}>
+              Delivery Note
+            </Typography>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#374151', mt: 0.2 }}>
+              {deliveryNote}
             </Typography>
           </Box>
         </Box>
       </Box>
 
-      {/* User Section */}
+      {/* ==================== User Section: Created By ==================== */}
       <Box
         sx={{
           px: 2,
@@ -97,10 +150,12 @@ function WarehouseLocationCard() {
               color: '#4F46E5',
             }}
           >
-            SC
+            {/* Initials derived from creator ID; replace with full name if API provides it */}
+            {getInitials(creatorId)}
           </Avatar>
 
           <Box>
+            {/* Created By — from API: fk_chr_created_id */}
             <Typography
               sx={{
                 fontSize: 12.5,
@@ -109,7 +164,7 @@ function WarehouseLocationCard() {
                 lineHeight: 1.2,
               }}
             >
-              Sarah Chen
+              {creatorId}
             </Typography>
 
             <Typography
@@ -119,7 +174,7 @@ function WarehouseLocationCard() {
                 mt: 0.2,
               }}
             >
-              Senior QC Lead
+              Created By
             </Typography>
           </Box>
         </Box>
@@ -134,7 +189,7 @@ function WarehouseLocationCard() {
         </IconButton>
       </Box>
 
-      {/* Map Section */}
+      {/* ==================== Location / Map Section ==================== */}
       <Box sx={{ px: 2, pb: 2 }}>
         <Box
           sx={{
@@ -159,6 +214,7 @@ function WarehouseLocationCard() {
               }}
             />
 
+            {/* Document Status — from API: chr_document_status */}
             <Typography
               sx={{
                 fontSize: 11.5,
@@ -166,9 +222,18 @@ function WarehouseLocationCard() {
                 lineHeight: 1.4,
               }}
             >
-              Rotterdam Port,
-              <br />
-              Netherlands
+              Document Status:
+              <Box
+                component="span"
+                sx={{
+                  fontWeight: 700,
+                  ml: 0.5,
+                  textTransform: 'capitalize',
+                  color: '#111827',
+                }}
+              >
+                {goodsReceipt.chr_document_status || '—'}
+              </Box>
             </Typography>
           </Box>
 
