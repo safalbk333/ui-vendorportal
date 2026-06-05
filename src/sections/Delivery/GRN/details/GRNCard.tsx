@@ -57,8 +57,7 @@ export default function GrnCard({ goodsReceipt }: GrnCardProps) {
           {/* Top */}
           <Stack
             direction="row"
-            alignItems="center"
-            justifyContent="space-between"
+            alignItems="baseline"
             flexWrap="wrap"
             gap={1}
           >
@@ -93,7 +92,7 @@ export default function GrnCard({ goodsReceipt }: GrnCardProps) {
               color={getStatusColor(goodsReceipt.chr_status)}
               size="small"
               sx={{
-                fontSize: 11,
+                fontSize: 8,
                 fontWeight: 600,
                 height: 22,
                 textTransform: 'capitalize',

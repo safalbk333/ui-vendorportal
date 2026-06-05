@@ -17,6 +17,11 @@ import React from 'react';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import ShoppingBagRoundedIcon from '@mui/icons-material/ShoppingBagRounded';
 import { styled } from '@mui/material/styles';
+import type { PurchaseOrder } from 'src/redux/PurchaseOrder/PurchaseOrderSlice';
+
+type PurchaseOrderTrackerProps = {
+  purchaseOrder: PurchaseOrder
+}
 
 const steps = [
   {
@@ -88,7 +93,7 @@ function StatusStepIcon(props: any) {
   );
 }
 
-const PurchaseOrderTracker = () => (
+const PurchaseOrderTracker = ({purchaseOrder}: PurchaseOrderTrackerProps) => (
   <Paper
     elevation={0}
     sx={{

@@ -61,12 +61,14 @@ import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
 import { fetchContracts, clearContracts } from 'src/redux/ContractManagement/ContractManagementSlice';
 import type { Contract } from 'src/redux/ContractManagement/ContractManagementSlice';
 import type { RootState } from 'src/redux/store';
+import PremiumBreadcrumbs from 'src/components/DynamicBreadcrumbs/page';
 
 type ContractStatus = 'Draft' | 'Under Review' | 'Approved' | 'Active' | 'Expired' | 'Terminated';
 
 interface ContractRow {
   id: number;
   contractId: string;
+  contractCode: string;
   contractTitle: string;
   vendor: string;
   category: string;
@@ -84,6 +86,7 @@ const mapContractToRow = (contract: Contract | null | undefined, index: number):
     return {
       id: index + 1,
       contractId: 'N/A',
+      contractCode: 'N/A',
       contractTitle: 'Invalid Contract',
       vendor: 'Unknown Vendor',
       category: 'N/A',
@@ -96,7 +99,7 @@ const mapContractToRow = (contract: Contract | null | undefined, index: number):
       daysToExpiry: 0,
     };
   }
-  
+
   const today = new Date();
 
   const endDate = contract.dt_end_date
@@ -118,9 +121,11 @@ const mapContractToRow = (contract: Contract | null | undefined, index: number):
 
     contractId: contract.pk_chr_contract_id || 'N/A',
 
+    contractCode: contract.chr_contract_code || 'CO-XXX-XXXX',
+
     contractTitle: contract.chr_title || 'Untitled Contract',
 
-    vendor: contract.fk_chr_vendor_id || 'Unknown Vendor',
+    vendor: contract.vendor.chr_vendor_name || 'Unknown Vendor',
 
     category: 'N/A',
 
@@ -412,7 +417,7 @@ function ExpiryBanner({ expiringSoon, onDismiss }: ExpiryBannerProps) {
       expiring within {EXPIRY_WARNING_DAYS} days:&nbsp;
       {expiringSoon.map((c) => (
         <span key={c.id}>
-          <strong>{c.contractId}</strong> ({c.vendor} — {c.daysToExpiry}d left)&nbsp;
+          <strong>{c.contractTitle}</strong> ({c.vendor} — {c.daysToExpiry}d left)&nbsp;
         </span>
       ))}
       — initiate renewal to avoid service disruption.
@@ -618,7 +623,7 @@ function ContractDashboard() {
 
   // ── Columns ───────────────────────────────────────────────────────────────
   const columns: GridColDef[] = [
-    { field: 'contractId', headerName: 'Contract ID', flex: 0.9 },
+    { field: 'contractCode', headerName: 'Contract Code', flex: 0.9 },
     { field: 'vendor', headerName: 'Vendor Name', flex: 1.3 },
     { field: 'contractTitle', headerName: 'Contract Title', flex: 1.6 },
     {
@@ -726,18 +731,19 @@ function ContractDashboard() {
       {/* Header */}
       <Box mb={2}>
         <Stack direction="row" alignItems="center" justifyContent="space-between">
-          <Box>
-            <Typography variant="body2" color="text.secondary" mb={0.5}>
-              Home &rsaquo; Contract Dashboard
-            </Typography>
-            <Typography variant="h6" fontWeight={700}>
-              Contract Management
-            </Typography>
+          <Box mb={2}>
+            <PremiumBreadcrumbs
+              title="Contract Dashboard"
+              paths={[
+                { label: 'Home', href: '/dashboard' },
+                { label: 'Contract Dashboard', href: '/contract' },
+              ]}
+            />
           </Box>
 
-          <Button onClick={() => router.push(paths.contract.add)} variant="outlined" size="small">
+          {/* <Button onClick={() => router.push(paths.contract.add)} variant="outlined" size="small">
             + New Contract
-          </Button>
+          </Button> */}
         </Stack>
       </Box>
 

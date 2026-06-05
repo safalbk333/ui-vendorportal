@@ -8,8 +8,13 @@ import {
 
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
+import type { PurchaseOrder } from 'src/redux/PurchaseOrder/PurchaseOrderSlice';
 
-const ContactCard = () => (
+type contactCardProps = {
+  purchaseOrder: PurchaseOrder
+}
+
+const ContactCard = ({purchaseOrder}:contactCardProps) => (
     <Box
       display="flex"
       flexDirection="column"

@@ -2,6 +2,12 @@ import { Box, Chip, Paper, Stack, Typography } from '@mui/material';
 
 import React from 'react';
 
+import type { PurchaseOrder } from 'src/redux/PurchaseOrder/PurchaseOrderSlice';
+
+type LineItemsTableProps = {
+  purchaseOrder: PurchaseOrder
+}
+
 const rows = [
   {
     code: 'HW-8821',
@@ -32,7 +38,7 @@ const rows = [
   },
 ];
 
-const LineItemsTable = () => (
+const LineItemsTable = ({ purchaseOrder }: LineItemsTableProps) => (
   <Paper
     elevation={0}
     sx={{

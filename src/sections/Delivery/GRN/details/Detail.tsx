@@ -15,6 +15,7 @@ import {
 } from 'src/redux/GoodsReceiptService/GoodsReceiptSlice';
 import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
+import { Button, Stack } from '@mui/material';
 
 function Detail() {
   const dispatch = useAppDispatch();
@@ -83,16 +84,22 @@ function Detail() {
 
   return (
     <Box>
-      <Box mb={2}>
-        <PremiumBreadcrumbs
-          title="GRN Details"
-          paths={[
-            { label: 'Home', href: '/dashboard' },
-            { label: 'GRN List', href: '/delivery/grn' },
-            { label: 'GRN Details', href: '/delivery/grn/details' },
-          ]}
-        />
-      </Box>
+      <Stack direction="row" alignItems="center" spacing={1} mb={2.5} justifyContent="space-between">
+        <Box mb={2}>
+          <PremiumBreadcrumbs
+            title="GRN Details"
+            paths={[
+              { label: 'Home', href: '/dashboard' },
+              { label: 'GRN List', href: '/delivery/grn' },
+              { label: 'GRN Details', href: '/delivery/grn/details' },
+            ]}
+          />
+        </Box>
+
+        <Button variant="outlined" size="small">
+          Generate Invoice
+        </Button>
+      </Stack>
 
       <Box mb={2} sx={{ borderTop: '1px dashed #d1d5db' }} />
 

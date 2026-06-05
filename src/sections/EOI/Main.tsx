@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { fetchEois } from 'src/redux/EoiManagement/EoiManagementSlice';
 import { RootState } from 'src/redux/store';
 import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
+import { Download } from '@mui/icons-material';
 
 export default function VendorEOIWhiteUI() {
   const router = useRouter();
@@ -26,7 +27,7 @@ export default function VendorEOIWhiteUI() {
   // Local state to track responded EOIs
   const [respondedEois, setRespondedEois] = useState<Set<string>>(new Set());
   const [declinedEois, setDeclinedEois] = useState<Set<string>>(new Set());
-  
+
   // Toast state
   const [toast, setToast] = useState<{
     open: boolean;
@@ -116,7 +117,7 @@ export default function VendorEOIWhiteUI() {
         {eois.map((eoi) => {
           const isResponded = respondedEois.has(eoi.pk_chr_eoi_id);
           const isDeclined = declinedEois.has(eoi.pk_chr_eoi_id);
-          
+
           return (
             <Paper
               key={eoi.pk_chr_eoi_id}
@@ -245,8 +246,8 @@ export default function VendorEOIWhiteUI() {
                 <Button
                   variant={isResponded ? "outlined" : "contained"}
                   size="small"
-                  startIcon={isResponded ? 
-                    <CheckCircleRoundedIcon sx={{ fontSize: 18 }} /> : 
+                  startIcon={isResponded ?
+                    <CheckCircleRoundedIcon sx={{ fontSize: 18 }} /> :
                     <ThumbUpOffAltRoundedIcon sx={{ fontSize: 18 }} />
                   }
                   onClick={() => !isResponded && !isDeclined && handleExpressInterest(eoi.pk_chr_eoi_id)}
@@ -302,6 +303,31 @@ export default function VendorEOIWhiteUI() {
                   onClick={() => router.push('/expression-of-interest/clarifications')}
                   variant="outlined"
                   size="small"
+                  startIcon={<Download sx={{ fontSize: 18 }} />}
+                  disabled={isDeclined}
+                  sx={{
+                    borderColor: '#dbe3ec',
+                    color: '#475569',
+                    px: 2,
+                    py: 0.9,
+                    borderRadius: 2.5,
+                    textTransform: 'none',
+                    fontWeight: 700,
+                    fontSize: 13,
+
+                    '&:hover': {
+                      borderColor: '#94a3b8',
+                      bgcolor: '#f8fafc',
+                    },
+                  }}
+                >
+                  Download EOI
+                </Button>
+
+                <Button
+                  onClick={() => router.push('/expression-of-interest/clarifications')}
+                  variant="outlined"
+                  size="small"
                   startIcon={<ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />}
                   disabled={isDeclined}
                   sx={{
@@ -322,7 +348,9 @@ export default function VendorEOIWhiteUI() {
                 >
                   Ask Clarification
                 </Button>
+
               </Stack>
+
             </Paper>
           );
         })}
@@ -335,8 +363,8 @@ export default function VendorEOIWhiteUI() {
         onClose={handleCloseToast}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
       >
-        <Alert 
-          onClose={handleCloseToast} 
+        <Alert
+          onClose={handleCloseToast}
           severity={toast.severity}
           sx={{ width: '100%' }}
         >

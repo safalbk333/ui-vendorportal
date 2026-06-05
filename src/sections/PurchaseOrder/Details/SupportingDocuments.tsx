@@ -4,15 +4,20 @@ import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import InsertDriveFileRoundedIcon from '@mui/icons-material/InsertDriveFileRounded';
 import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
+import type { PurchaseOrder } from 'src/redux/PurchaseOrder/PurchaseOrderSlice';
+
+type POSupportingDocsBoxProps = {
+  purchaseOrder: PurchaseOrder
+}
 
 const attachments = [
   {
-    name: 'PO_2026_0145.pdf',
+    name: 'Vendor_Quotation.pdf',
     size: '1.8 MB',
     type: 'PDF',
   },
   {
-    name: 'Technical_Specs.xlsx',
+    name: 'SOW.xlsx',
     size: '860 KB',
     type: 'XLSX',
   },
@@ -34,7 +39,7 @@ const getFileIcon = (type: string) => {
   }
 };
 
-export default function POSupportingDocsBox() {
+export default function POSupportingDocsBox({purchaseOrder}: POSupportingDocsBoxProps) {
   return (
     <Box
       sx={{

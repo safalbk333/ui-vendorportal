@@ -43,6 +43,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 // Redux imports
 import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
 import { fetchContractById, clearCurrentContract, Contract } from 'src/redux/ContractManagement/ContractManagementSlice';
+import PremiumBreadcrumbs from 'src/components/DynamicBreadcrumbs/page';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -211,7 +212,7 @@ function transformApiContractToDetail(apiContract: Contract): ContractDetail {
   return {
     contractId: apiContract.chr_contract_code || apiContract.pk_chr_contract_id.slice(0, 8),
     contractTitle: apiContract.chr_title,
-    vendor: apiContract.fk_chr_vendor_id, // This would need to be replaced with vendor name from a vendor lookup
+    vendor: apiContract.vendor.chr_vendor_name, // This would need to be replaced with vendor name from a vendor lookup
     contractType: 'Service Agreement', // Default - would come from API
     description: apiContract.txt_description,
     status: mapStatus(apiContract.chr_status),
@@ -1010,14 +1011,12 @@ function ContractDetailPage({ contractId: propContractId }: ContractDetailPagePr
     <Box>
       {/* ── breadcrumb / page header ─────────────────────────────────────────── */}
       <Box mb={2}>
-        {/*
-          Replace the block below with:
           <PremiumBreadcrumbs
-            title={transformedData.contractId}
+            title="Contract Details" //{transformedData.contractId}
             paths={[
               { label: 'Home', href: '/dashboard' },
-              { label: 'Contract Dashboard', href: '/contract-dashboard' },
-              { label: transformedData.contractId, href: '#' },
+              { label: 'Contract Dashboard', href: '/contract' },
+              { label: transformedData.contractId, href: `/contract/contract-details/${contractId}` },
             ]}
             action={
               <>
@@ -1030,55 +1029,6 @@ function ContractDetailPage({ contractId: propContractId }: ContractDetailPagePr
               </>
             }
           />
-        */}
-        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={1}>
-          <Box>
-            <Typography variant="body2" color="text.secondary" mb={0.5}>
-              Home &rsaquo; Contract Dashboard &rsaquo; {transformedData.contractId}
-            </Typography>
-            <Stack direction="row" alignItems="center" spacing={1.5}>
-              <Typography variant="h6" fontWeight={700}>
-                {transformedData.contractId}
-              </Typography>
-              {/* Status badge in header — reusable per spec §8 */}
-              <Chip
-                label={transformedData.status}
-                size="small"
-                color={STATUS_COLOR[transformedData.status]}
-                variant="outlined"
-                sx={{ fontSize: 11, height: 22, fontWeight: 600 }}
-              />
-            </Stack>
-            <Typography variant="body2" color="text.secondary" mt={0.3}>
-              {transformedData.contractTitle}
-            </Typography>
-          </Box>
-
-          {/* Header actions — conditional per contract status */}
-          <Stack direction="row" spacing={1} flexShrink={0}>
-            {canEdit && (
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<EditOutlinedIcon sx={{ fontSize: 14 }} />}
-                onClick={handleEdit}
-              >
-                Edit
-              </Button>
-            )}
-            {canRenew && (
-              <Button
-                variant="contained"
-                size="small"
-                startIcon={<RefreshOutlinedIcon sx={{ fontSize: 14 }} />}
-                onClick={handleRenew}
-                sx={{ background: PRIMARY, color: 'white' }}
-              >
-                Renew
-              </Button>
-            )}
-          </Stack>
-        </Stack>
       </Box>
 
       <Box mb={2} sx={{ borderTop: '1px dashed #d1d5db' }} />

@@ -292,7 +292,7 @@ function PurchaseOrderDashboard() {
               },
             }}
             onRowClick={(params) => {
-              router.push(`/purchase_orders/details/${params.row.id}`);
+              router.push(`/purchase_orders/details/details?id=${params.row.id}`);
             }}
             initialState={{
               pagination: {

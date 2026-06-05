@@ -25,11 +25,19 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 
 import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
-import { fetchPurchaseOrderById, clearSelectedPurchaseOrder } from 'src/redux/PurchaseOrder/PurchaseOrderSlice';
+import {
+  fetchPurchaseOrderById,
+  clearSelectedPurchaseOrder,
+  PurchaseOrder,
+} from 'src/redux/PurchaseOrder/PurchaseOrderSlice';
 import { useSearchParams } from 'next/navigation';
 import { RootState } from 'src/redux/store';
 
-const PurchaseOrderCard = ({ purchaseOrder }: { purchaseOrder: any }) => (
+// ==================== PURCHASE ORDER CARD ====================
+// Renders the top summary bar for the selected purchase order.
+// Receives the full PurchaseOrder object and displays key metadata.
+
+const PurchaseOrderCard = ({ purchaseOrder }: { purchaseOrder: PurchaseOrder }) => (
   <Box
     sx={{
       borderBottom: '1px solid #e4e7ec',
@@ -43,6 +51,7 @@ const PurchaseOrderCard = ({ purchaseOrder }: { purchaseOrder: any }) => (
       {/* LEFT CONTENT */}
       <Box flex={1} minWidth={0}>
         <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
+          {/* PO Number */}
           <Typography
             sx={{
               fontSize: '14px',
@@ -53,6 +62,7 @@ const PurchaseOrderCard = ({ purchaseOrder }: { purchaseOrder: any }) => (
             {purchaseOrder?.chr_po_number || 'PO-XXXX-XXXX'}
           </Typography>
 
+          {/* Document Status Badge — driven by chr_document_status from the API */}
           <Box
             sx={{
               px: 1,
@@ -64,10 +74,11 @@ const PurchaseOrderCard = ({ purchaseOrder }: { purchaseOrder: any }) => (
               fontWeight: 600,
             }}
           >
-            Pending Vendor Action
+            {purchaseOrder?.chr_document_status || 'Pending Vendor Action'}
           </Box>
         </Box>
 
+        {/* Metadata Grid: Vendor, Total Value, Issue Date, Delivery Date */}
         <Box
           mt={1}
           display="grid"
@@ -80,34 +91,36 @@ const PurchaseOrderCard = ({ purchaseOrder }: { purchaseOrder: any }) => (
         >
           {[
             {
-              label: 'Buyer',
+              label: 'Vendor',
+              // Correctly sourced from the nested vendor relation in the API response
               value: purchaseOrder?.vendor?.chr_vendor_name || 'N/A',
               color: '#344054',
             },
             {
               label: 'Total Value',
-              value: `${purchaseOrder?.chr_currency || 'USD'} ${purchaseOrder?.flt_total_value?.toLocaleString() || '0.00'}`,
+              value: `${purchaseOrder?.chr_currency || 'USD'} ${purchaseOrder?.flt_total_value?.toLocaleString() || '0.00'
+                }`,
               color: '#3b5ccc',
             },
             {
               label: 'Issue Date',
-              value: purchaseOrder?.dt_issued_at 
+              value: purchaseOrder?.dt_issued_at
                 ? new Date(purchaseOrder.dt_issued_at).toLocaleDateString('en-GB', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  })
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })
                 : 'N/A',
               color: '#344054',
             },
             {
               label: 'Delivery Date',
-              value: purchaseOrder?.dt_expected_delivery 
+              value: purchaseOrder?.dt_expected_delivery
                 ? new Date(purchaseOrder.dt_expected_delivery).toLocaleDateString('en-GB', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                  })
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })
                 : 'N/A',
               color: '#d97706',
             },
@@ -138,6 +151,7 @@ const PurchaseOrderCard = ({ purchaseOrder }: { purchaseOrder: any }) => (
         </Box>
       </Box>
 
+      {/* Print Action */}
       <Box display="flex" alignItems="center" gap={1} flexShrink={0}>
         <IconButton
           size="small"
@@ -153,49 +167,73 @@ const PurchaseOrderCard = ({ purchaseOrder }: { purchaseOrder: any }) => (
   </Box>
 );
 
+// ==================== DETAILED VIEW ====================
+
 function DetailedView() {
   const dispatch = useAppDispatch();
   const searchParams = useSearchParams();
-  
+
+  // Pull purchase order state from Redux store
   const { selectedPurchaseOrder, detailLoading, detailError } = useAppSelector(
     (state: RootState) => state.purchaseOrder
   );
 
+  // Dialog state
   const [open, setOpen] = useState(false);
   const [decision, setDecision] = useState<'agree' | 'disagree' | ''>('');
   const [clarification, setClarification] = useState('');
 
-  const id = searchParams.get('id'); // Get ID from URL query params
+  // ── ID from URL query params (?id=<purchase_order_id>)
+  const id = searchParams.get('id');
 
-  // Fetch purchase order details when ID is available
+  // ==================== EFFECTS ====================
+
+  // Fetch purchase order by ID when the component mounts or the ID changes.
+  // Clears the selected purchase order from Redux on unmount to avoid stale data
+  // being shown when navigating to a different PO later.
   useEffect(() => {
+
     if (id) {
+
       dispatch(fetchPurchaseOrderById(id));
     }
 
-    // Cleanup on unmount
     return () => {
       dispatch(clearSelectedPurchaseOrder());
     };
   }, [dispatch, id]);
 
+  useEffect(()=>{
+    const id = searchParams.get('id');
+    console.log({id})
+  }, [id])
+
+  // ==================== HANDLERS ====================
+
+  // Close the acknowledgement dialog and reset its local state
   const handleClose = () => {
     setOpen(false);
     setDecision('');
     setClarification('');
   };
 
+  // Submit acknowledgement decision (agree / disagree + optional clarification)
   const handleSubmit = () => {
     console.log({
+      purchaseOrderId: id,
       decision,
-      clarification,
+      clarification: decision === 'disagree' ? clarification : null,
     });
 
+    // TODO: Dispatch acknowledge PO thunk here when the endpoint is ready
     handleClose();
   };
 
+  // ==================== RENDER ====================
+
   return (
     <Box>
+      {/* Breadcrumb + Page Header */}
       <Box mb={2}>
         <PremiumBreadcrumbs
           title="Purchase Orders Details"
@@ -210,6 +248,8 @@ function DetailedView() {
                 variant="outlined"
                 color="primary"
                 onClick={() => setOpen(true)}
+                // Disable while loading or when no PO data is available
+                disabled={detailLoading || !selectedPurchaseOrder}
                 sx={{
                   borderRadius: 0.5,
                   textTransform: 'none',
@@ -227,21 +267,28 @@ function DetailedView() {
 
       <Box mb={2} sx={{ borderTop: '1px dashed #d1d5db' }} />
 
-      {/* Loading State */}
-      {detailLoading && (
+      {/* ── No ID in URL ── */}
+      {!id && (
+        <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
+          No purchase order ID provided in the URL.
+        </Typography>
+      )}
+
+      {/* ── Loading State ── */}
+      {id && detailLoading && (
         <Typography align="center" sx={{ py: 4 }}>
           Loading purchase order details...
         </Typography>
       )}
 
-      {/* Error State */}
-      {detailError && (
+      {/* ── Error State ── */}
+      {id && !detailLoading && detailError && (
         <Typography color="error" align="center" sx={{ py: 4 }}>
           Error: {detailError}
         </Typography>
       )}
 
-      {/* Main Content - Only show when data is loaded */}
+      {/* ── Main Content: only rendered once data is loaded ── */}
       {!detailLoading && selectedPurchaseOrder && (
         <Box
           sx={{
@@ -254,45 +301,46 @@ function DetailedView() {
             },
           }}
         >
-          {/* Left */}
+          {/* ── Left Column ── */}
           <Box
             sx={{
-              flex: {
-                lg: '0 0 70%',
-              },
+              flex: { lg: '0 0 70%' },
               width: '100%',
               minWidth: 0,
             }}
           >
+            {/* PO Summary Header Card */}
             <PurchaseOrderCard purchaseOrder={selectedPurchaseOrder} />
 
+            {/* Line Items Table — receives PO data for rendering line items */}
             <Box mt={2}>
-              <LineItemsTable />
+              <LineItemsTable purchaseOrder={selectedPurchaseOrder} />
             </Box>
 
-            <PurchaseOrderTracker />
+            {/* PO Status Tracker — receives PO data to render timeline/status */}
+            <PurchaseOrderTracker purchaseOrder={selectedPurchaseOrder} />
           </Box>
 
-          {/* Right */}
+          {/* ── Right Column (sticky sidebar) ── */}
           <Box
             sx={{
-              flex: {
-                lg: '0 0 30%',
-              },
+              flex: { lg: '0 0 30%' },
               width: '100%',
               minWidth: 280,
               position: 'sticky',
               top: 20,
             }}
           >
-            <ContactCard />
+            {/* Vendor / Contact Info — receives nested vendor data */}
+            <ContactCard purchaseOrder={selectedPurchaseOrder} />
 
-            <POSupportingDocsBox />
+            {/* Supporting Documents associated with this PO */}
+            <POSupportingDocsBox purchaseOrder={selectedPurchaseOrder} />
           </Box>
         </Box>
       )}
 
-      {/* ACKNOWLEDGE POPUP */}
+      {/* ==================== ACKNOWLEDGE PO DIALOG ==================== */}
       <Dialog
         open={open}
         onClose={handleClose}
@@ -355,7 +403,7 @@ function DetailedView() {
 
         {/* BODY */}
         <DialogContent sx={{ p: 2.2 }}>
-          {/* PO SUMMARY */}
+          {/* PO SUMMARY STRIP — shows PO number + total value inside the dialog */}
           <Box
             sx={{
               border: '1px solid #e4e7ec',
@@ -411,7 +459,8 @@ function DetailedView() {
                     color: '#4f46e5',
                   }}
                 >
-                  {`${selectedPurchaseOrder?.chr_currency || 'USD'} ${selectedPurchaseOrder?.flt_total_value?.toLocaleString() || '0.00'}`}
+                  {`${selectedPurchaseOrder?.chr_currency || 'USD'} ${selectedPurchaseOrder?.flt_total_value?.toLocaleString() || '0.00'
+                    }`}
                 </Typography>
               </Box>
             </Stack>
@@ -438,32 +487,14 @@ function DetailedView() {
 
               <Box>
                 <Stack direction="row" spacing={0.8} alignItems="center">
-                  <CheckCircleRoundedIcon
-                    sx={{
-                      color: '#22c55e',
-                      fontSize: 18,
-                    }}
-                  />
+                  <CheckCircleRoundedIcon sx={{ color: '#22c55e', fontSize: 18 }} />
 
-                  <Typography
-                    sx={{
-                      fontWeight: 700,
-                      fontSize: '14px',
-                      color: '#111827',
-                    }}
-                  >
+                  <Typography sx={{ fontWeight: 700, fontSize: '14px', color: '#111827' }}>
                     I Agree
                   </Typography>
                 </Stack>
 
-                <Typography
-                  sx={{
-                    fontSize: '12px',
-                    color: '#667085',
-                    mt: 0.5,
-                    lineHeight: 1.5,
-                  }}
-                >
+                <Typography sx={{ fontSize: '12px', color: '#667085', mt: 0.5, lineHeight: 1.5 }}>
                   I acknowledge and accept all terms, pricing, delivery timelines, and conditions
                   mentioned in this purchase order.
                 </Typography>
@@ -488,20 +519,9 @@ function DetailedView() {
 
               <Box width="100%">
                 <Stack direction="row" spacing={0.8} alignItems="center">
-                  <ErrorOutlineRoundedIcon
-                    sx={{
-                      color: '#f59e0b',
-                      fontSize: 18,
-                    }}
-                  />
+                  <ErrorOutlineRoundedIcon sx={{ color: '#f59e0b', fontSize: 18 }} />
 
-                  <Typography
-                    sx={{
-                      fontWeight: 700,
-                      fontSize: '14px',
-                      color: '#111827',
-                    }}
-                  >
+                  <Typography sx={{ fontWeight: 700, fontSize: '14px', color: '#111827' }}>
                     I Disagree
                   </Typography>
                 </Stack>
@@ -519,6 +539,7 @@ function DetailedView() {
                   timelines, or other PO terms.
                 </Typography>
 
+                {/* Clarification text field — slides in when "disagree" is selected */}
                 {decision === 'disagree' && (
                   <Slide direction="up" in={decision === 'disagree'} mountOnEnter unmountOnExit>
                     <TextField
@@ -568,6 +589,9 @@ function DetailedView() {
               variant="contained"
               onClick={handleSubmit}
               color="primary"
+              // Disable submit if no decision has been made,
+              // or if "disagree" is chosen but no clarification has been entered
+              disabled={!decision || (decision === 'disagree' && clarification.trim() === '')}
               sx={{
                 textTransform: 'none',
                 borderRadius: '9px',

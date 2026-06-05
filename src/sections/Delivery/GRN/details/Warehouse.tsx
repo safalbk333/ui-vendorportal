@@ -29,7 +29,7 @@ function WarehouseLocationCard({ goodsReceipt }: WarehouseLocationCardProps) {
   // The API provides fk_chr_created_id (creator ID) and fk_chr_modified_id (modifier ID)
   // We use fk_chr_created_id as the responsible person reference.
   // If a full user object is not nested, fallback gracefully.
-  const creatorId = goodsReceipt.fk_chr_created_id ?? '—';
+  const createdAt = goodsReceipt.tim_created.split('T')[0] ?? '—';
 
   // ==================== DATA: Purchase order reference for location context ====================
   const poNumber = goodsReceipt.purchase_order?.chr_po_number ?? '—';
@@ -140,7 +140,7 @@ function WarehouseLocationCard({ goodsReceipt }: WarehouseLocationCardProps) {
             gap: 1,
           }}
         >
-          <Avatar
+          {/* <Avatar
             sx={{
               width: 30,
               height: 30,
@@ -150,12 +150,20 @@ function WarehouseLocationCard({ goodsReceipt }: WarehouseLocationCardProps) {
               color: '#4F46E5',
             }}
           >
-            {/* Initials derived from creator ID; replace with full name if API provides it */}
             {getInitials(creatorId)}
-          </Avatar>
+          </Avatar> */}
 
           <Box>
-            {/* Created By — from API: fk_chr_created_id */}
+            <Typography
+              sx={{
+                fontSize: 11,
+                color: '#6B7280',
+                mt: 0.2,
+              }}
+            >
+              Created On
+            </Typography>
+
             <Typography
               sx={{
                 fontSize: 12.5,
@@ -164,17 +172,7 @@ function WarehouseLocationCard({ goodsReceipt }: WarehouseLocationCardProps) {
                 lineHeight: 1.2,
               }}
             >
-              {creatorId}
-            </Typography>
-
-            <Typography
-              sx={{
-                fontSize: 11,
-                color: '#6B7280',
-                mt: 0.2,
-              }}
-            >
-              Created By
+              {createdAt}
             </Typography>
           </Box>
         </Box>

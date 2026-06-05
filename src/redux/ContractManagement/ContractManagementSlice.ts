@@ -3,6 +3,22 @@ import axios from 'axios';
 import { axiosOptima } from 'src/lib/axios';
 
 // TYPES
+
+export interface Vendor {
+    pk_chr_vendor_id: string;
+    chr_vendor_name: string;
+    chr_vendor_email: string;
+    chr_vendor_phone: string;
+}
+
+export interface Company {
+    pk_chr_company_id: string;
+    chr_company_name: string;
+    chr_company_code: string;
+    chr_company_email: string;
+    chr_company_phone: string;
+    chr_company_address: string;
+}
 export interface Contract {
     pk_chr_contract_id: string;
     chr_contract_code?: string; // Added this field based on response
@@ -19,6 +35,8 @@ export interface Contract {
     fk_chr_created_id: string | null;
     fk_chr_modified_id: string | null;
     chr_document_status: string;
+    vendor: Vendor
+    company: Company
 }
 
 export interface CreateContractRequest {
@@ -37,7 +55,6 @@ interface ContractManagementState {
     error: string | null;
     creating: boolean;
     createError: string | null;
-    // New state for single contract fetch
     currentContract: Contract | null;
     fetchingContract: boolean;
     fetchContractError: string | null;
@@ -106,7 +123,6 @@ export const createContract = createAsyncThunk(
                 vendorId: contractData.vendorId,
                 chr_status: 'Draft',
                 chr_document_status: 'Pending',
-                // strHtmlContent removed as it's not in the provided request body
             };
 
             const response = await axiosOptima.post('/contract', payload);
