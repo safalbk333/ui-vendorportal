@@ -1,9 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit';
 import contractManagementReducer from './ContractManagement/ContractManagementSlice';
-import vendorManagementReducer from './VendorManagement/VendorManagementSlice'
 import eoiManagementReducer from './EoiManagement/EoiManagementSlice'
-import purchaseOrderReducer from './PurchaseOrder/PurchaseOrderSlice'
 import goodsReceiptReducer from './GoodsReceiptService/GoodsReceiptSlice'
+import purchaseOrderReducer from './PurchaseOrder/PurchaseOrderSlice'
+import quotationsReducer from './Quotation/Quatation'
+import rfqReducer from './RFQ/RfqSlice'
+import vendorManagementReducer from './VendorManagement/VendorManagementSlice'
 
 export const store = configureStore({
   reducer: {
@@ -11,7 +13,9 @@ export const store = configureStore({
     vendorManagement: vendorManagementReducer,
     eoiManagement: eoiManagementReducer,
     purchaseOrder: purchaseOrderReducer,
-    goodsReceipt: goodsReceiptReducer
+    goodsReceipt: goodsReceiptReducer,
+    rfq: rfqReducer,
+    quotations:quotationsReducer
   },
 });
 

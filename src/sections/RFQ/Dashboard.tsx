@@ -1,33 +1,34 @@
 'use client';
 
-import React from 'react';
 import {
+  Autocomplete,
   Box,
-  Chip,
-  Stack,
   Button,
+  Chip,
+  Pagination,
+  Stack,
   TextField,
   Typography,
-  Pagination,
-  Autocomplete,
 } from '@mui/material';
-
-import type {
-  GridColDef,
-  GridRenderCellParams} from '@mui/x-data-grid';
 import {
   DataGrid,
-  useGridApiContext,
   GridFooterContainer,
   gridPageCountSelector,
   gridPaginationModelSelector,
+  useGridApiContext,
 } from '@mui/x-data-grid';
-
-import { alpha, useTheme } from '@mui/material/styles';
+import type {
+  GridColDef,
+  GridRenderCellParams
+} from '@mui/x-data-grid';
 import { GridToolbar, useGridSelector } from '@mui/x-data-grid/internals';
-import { useRouter } from 'next/navigation';
+import React, { useEffect } from 'react';
+import { alpha, useTheme } from '@mui/material/styles';
+import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
 
 import PremiumBreadcrumbs from 'src/components/DynamicBreadcrumbs/page';
+import { fetchRFQs } from 'src/redux/RFQ/RfqSlice';
+import { useRouter } from 'next/navigation';
 
 function CustomFooter() {
   const apiRef = useGridApiContext();
@@ -65,6 +66,16 @@ function CustomFooter() {
 function RFQDashboard() {
   const theme = useTheme();
   const router = useRouter();
+  const dispatch = useAppDispatch();
+
+  const { data, loading, error } = useAppSelector(
+    (state) => state.rfq
+  );
+
+  useEffect(() => {
+    dispatch(fetchRFQs());
+  }, [dispatch]);
+  console.log(data,'data')
 
   const PRIMARY = theme.palette.primary.main;
 
@@ -130,51 +141,21 @@ function RFQDashboard() {
     },
   ];
 
-  const rows = [
-    {
-      id: 1,
-      rfqNo: 'RFQ-2026-1001',
-      title: 'Laptop Procurement for Head Office',
-      category: 'IT Equipment',
-      issueDate: '01 May 2026',
-      dueDate: '10 May 2026',
-      buyer: 'Procurement Team',
-      status: 'Open',
-    },
-
-    {
-      id: 2,
-      rfqNo: 'RFQ-2026-1002',
-      title: 'Office Furniture Supply',
-      category: 'Furniture',
-      issueDate: '28 Apr 2026',
-      dueDate: '08 May 2026',
-      buyer: 'Admin Department',
-      status: 'Submitted',
-    },
-
-    {
-      id: 3,
-      rfqNo: 'RFQ-2026-1003',
-      title: 'Warehouse Logistics Services',
-      category: 'Logistics',
-      issueDate: '26 Apr 2026',
-      dueDate: '06 May 2026',
-      buyer: 'Supply Chain',
-      status: 'Under Review',
-    },
-
-    {
-      id: 4,
-      rfqNo: 'RFQ-2026-1004',
-      title: 'Industrial Safety Equipment',
-      category: 'Safety',
-      issueDate: '24 Apr 2026',
-      dueDate: '04 May 2026',
-      buyer: 'Operations',
-      status: 'Rejected',
-    },
-  ];
+const rows =
+  data?.map((rfq) => ({
+    id: rfq.pk_chr_rfq_id,
+    rfqNo: rfq.chr_rfq_code,
+    title: rfq.chr_rfq_title,
+    category:
+      rfq.rfq_item_mappings?.[0]?.item?.chr_item_name || '-',
+    issueDate: new Date(rfq.dt_issue_date).toLocaleDateString('en-GB'),
+    dueDate: rfq.dt_due_date
+      ? new Date(rfq.dt_due_date).toLocaleDateString('en-GB')
+      : '-',
+    buyer: rfq.request?.chr_title || '-',
+    status: rfq.chr_status,
+    quotations: rfq.quotations?.length || 0,
+  })) || [];
 
   return (
     <Box>
@@ -272,9 +253,9 @@ function RFQDashboard() {
               toolbar: GridToolbar,
               footer: CustomFooter,
             }}
-            onRowClick={(params) => {
-              router.push(`/quotations/view`);
-            }}
+onRowClick={(params) => {
+  router.push(`/quotations/view?id=${params.row.id}`);
+}}
             slotProps={{
               toolbar: {
                 showQuickFilter: false,

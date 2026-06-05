@@ -1,18 +1,19 @@
 'use client';
 
 import {
+  Avatar,
   Box,
+  Button,
   Chip,
+  Divider,
+  Drawer,
+  IconButton,
   Paper,
   Stack,
-  Avatar,
-  Button,
-  Drawer,
-  Divider,
-  IconButton,
   Typography,
 } from '@mui/material';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
 
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import AttachmentsSection from './Attachment';
@@ -22,10 +23,15 @@ import ModernItemsTable from './Table';
 import PremiumBreadcrumbs from 'src/components/DynamicBreadcrumbs/page';
 import RFQHeaderCard from './RFQSummaryCard';
 import RFQProcessFlow from './ProcessFlow';
+import { SplashScreen } from 'src/components/loading-screen';
+import { fetchRFQById } from 'src/redux/RFQ/RfqSlice';
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks/use-router';
+import { useSearchParams } from 'next/navigation';
 
-function BuyingOrganizationCard() {
+function BuyingOrganizationCard({ organization }: any) {
+  const hasData = !!organization;
+
   return (
     <Paper
       elevation={0}
@@ -35,122 +41,136 @@ function BuyingOrganizationCard() {
         border: '1px solid #E5E7EB',
       }}
     >
-      {/* Top */}
-      <Box display="flex" alignItems="center" gap={1.5}>
-        <Avatar
+      <Typography
+        sx={{
+          fontSize: '13px',
+          fontWeight: 600,
+          mb: 1.5,
+        }}
+      >
+        Buying Organization
+      </Typography>
+
+      {!hasData ? (
+        <Box
           sx={{
-            bgcolor: '#EEF2FF',
-            color: '#4F46E5',
-            width: 40,
-            height: 40,
+            py: 3,
+            textAlign: 'center',
+            color: '#6B7280',
           }}
         >
-          <BusinessIcon sx={{ fontSize: 20 }} />
-        </Avatar>
-
-        <Box>
-          <Typography
-            sx={{
-              fontSize: '13px',
-              fontWeight: 600,
-              color: '#111827',
-              lineHeight: 1.3,
-            }}
-          >
-            Global Industrial Solutions Ltd.
-          </Typography>
-
-          <Typography
-            sx={{
-              fontSize: '12px',
-              color: '#6B7280',
-            }}
-          >
-            Manufacturing & Engineering
+          <BusinessIcon sx={{ fontSize: 40, mb: 1, opacity: 0.4 }} />
+          <Typography fontSize={13}>
+            No organization details available
           </Typography>
         </Box>
-      </Box>
+      ) : (
+        <>
+          <Box display="flex" alignItems="center" gap={1.5}>
+            <Avatar
+              sx={{
+                bgcolor: '#EEF2FF',
+                color: '#4F46E5',
+                width: 40,
+                height: 40,
+              }}
+            >
+              <BusinessIcon sx={{ fontSize: 20 }} />
+            </Avatar>
 
-      <Divider sx={{ my: 1.5 }} />
+            <Box>
+              <Typography
+                sx={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#111827',
+                }}
+              >
+                {organization.chr_user_name}
+              </Typography>
 
-      {/* Details */}
-      <Stack spacing={1.5}>
-        <Box display="flex" justifyContent="space-between" gap={2}>
-          <Typography
-            sx={{
-              fontSize: '13px',
-              color: '#6B7280',
-            }}
-          >
-            Contact Person
-          </Typography>
+              <Typography
+                sx={{
+                  fontSize: '12px',
+                  color: '#6B7280',
+                }}
+              >
+                Request Owner
+              </Typography>
+            </Box>
+          </Box>
 
-          <Typography
-            sx={{
-              fontSize: '13px',
-              fontWeight: 500,
-              color: '#111827',
-            }}
-          >
-            John Mathews
-          </Typography>
-        </Box>
+          <Divider sx={{ my: 1.5 }} />
 
-        <Box display="flex" justifyContent="space-between" gap={2}>
-          <Typography
-            sx={{
-              fontSize: '12px',
-              color: '#6B7280',
-            }}
-          >
-            Email
-          </Typography>
+          <Stack spacing={1.5}>
+            <Box display="flex" justifyContent="space-between">
+              <Typography fontSize={13} color="#6B7280">
+                Name
+              </Typography>
 
-          <Typography
-            sx={{
-              fontSize: '13px',
-              fontWeight: 500,
-              color: '#111827',
-            }}
-          >
-            procurement@gisltd.com
-          </Typography>
-        </Box>
+              <Typography fontSize={13} fontWeight={500}>
+                {organization.chr_user_name}
+              </Typography>
+            </Box>
 
-        <Box display="flex" justifyContent="space-between" alignItems="center">
-          <Typography
-            sx={{
-              fontSize: '13px',
-              color: '#6B7280',
-            }}
-          >
-            Vendor Category
-          </Typography>
+            <Box display="flex" justifyContent="space-between">
+              <Typography fontSize={13} color="#6B7280">
+                Email
+              </Typography>
 
-          <Chip
-            label="Preferred Buyer"
-            size="small"
-            sx={{
-              height: 22,
-              fontSize: '13px',
-              bgcolor: '#ECFDF5',
-              color: '#047857',
-              fontWeight: 700,
-            }}
-          />
-        </Box>
-      </Stack>
+              <Typography fontSize={13} fontWeight={500}>
+                {organization.chr_user_email}
+              </Typography>
+            </Box>
+
+            <Box display="flex" justifyContent="space-between">
+              <Typography fontSize={13} color="#6B7280">
+                Role
+              </Typography>
+
+              <Chip
+                label="Requester"
+                size="small"
+                sx={{
+                  height: 22,
+                  bgcolor: '#ECFDF5',
+                  color: '#047857',
+                  fontWeight: 600,
+                }}
+              />
+            </Box>
+          </Stack>
+        </>
+      )}
     </Paper>
   );
 }
 function DetailedView() {
   const router = useRouter();
+    const searchParams = useSearchParams();
+
+  const rfqId = searchParams.get('id');
+  const dispatch = useAppDispatch();
+
+useEffect(() => {
+  if (rfqId) {
+    dispatch(fetchRFQById(rfqId));
+  }
+}, [dispatch, rfqId]);
+
+const { selectedRFQ, getByIdLoading } = useAppSelector(
+  (state) => state.rfq
+);
+console.log(selectedRFQ,'selectedRFQ')
   const [openFlow, setOpenFlow] = useState(false);
+  if (getByIdLoading){
+    return <SplashScreen />
+  }
   return (
     <Box>
       <Box mb={2}>
         <PremiumBreadcrumbs
-          title="RFQ #2024-0892"
+          title="RFQ"
           paths={[
             { label: 'Home', href: '/dashboard' },
             { label: 'RFQ Dashboard', href: '/quotations' },
@@ -168,15 +188,15 @@ function DetailedView() {
                 RFQ Flow
               </Button>
 
-              <Button
-                onClick={() => {
-                  router.push(paths.quotations.submit);
-                }}
-                sx={{ fontWeight: 600, borderRadius: 0.3 }}
-                variant="outlined"
-              >
-                Submit Quotation
-              </Button>
+<Button
+  onClick={() => {
+    router.push(`${paths.quotations.submit}?id=${rfqId}`);
+  }}
+  sx={{ fontWeight: 600, borderRadius: 0.3 }}
+  variant="outlined"
+>
+  Submit Quotation
+</Button>
             </Stack>
           }
         />
@@ -194,12 +214,12 @@ function DetailedView() {
           }}
         >
           <Box>
-            <RFQHeaderCard />
-          </Box>
+<RFQHeaderCard rfq={selectedRFQ} />          </Box>
           {/* divider */}
           <Divider sx={{ my: 1.5 }} />
-          <ModernItemsTable />
-        </Paper>
+<ModernItemsTable
+  items={selectedRFQ?.rfq_item_mappings || []}
+/>        </Paper>
 
         {/* Right Side */}
         <Paper
@@ -210,8 +230,13 @@ function DetailedView() {
             overflow: 'auto',
           }}
         >
-          <BuyingOrganizationCard />
-          <AttachmentsSection />
+<BuyingOrganizationCard
+  organization={selectedRFQ?.request?.requested_by}
+/>
+
+<AttachmentsSection
+  attachments={selectedRFQ?.attachments || []}
+/>
 
           {/* Sidebar / summary / actions */}
         </Paper>

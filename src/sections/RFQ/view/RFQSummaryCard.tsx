@@ -1,10 +1,23 @@
 'use client';
 
-import { Box, Paper, Button, Typography } from '@mui/material';
+import { Box, Button, Paper, Typography } from '@mui/material';
 
 import React from 'react';
 
-function RFQHeaderCard() {
+interface RFQHeaderCardProps {
+  rfq: any;
+}
+
+function RFQHeaderCard({ rfq }: RFQHeaderCardProps) {
+  const formatDate = (date?: string) =>
+    date
+      ? new Date(date).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+      : '-';
+
   return (
     <Paper
       elevation={0}
@@ -28,7 +41,7 @@ function RFQHeaderCard() {
               gap: 0.8,
             }}
           >
-            RFQ #2024-0892
+            {rfq?.chr_rfq_code}
             <Box
               component="span"
               sx={{
@@ -38,7 +51,7 @@ function RFQHeaderCard() {
                 textTransform: 'uppercase',
               }}
             >
-              ( Pending )
+              ({rfq?.chr_status})
             </Box>
           </Typography>
 
@@ -51,9 +64,10 @@ function RFQHeaderCard() {
               maxWidth: 500,
             }}
           >
-            Office Furniture Supply
+            {rfq?.chr_rfq_title}
           </Typography>
         </Box>
+
         <Button
           sx={{ borderRadius: 0.5, fontWeight: 600 }}
           variant="outlined"
@@ -64,6 +78,7 @@ function RFQHeaderCard() {
           Ask Clarification
         </Button>
       </Box>
+
       {/* Bottom Info Section */}
       <Box display="flex" gap={5} flexWrap="wrap">
         <Box>
@@ -85,7 +100,7 @@ function RFQHeaderCard() {
               color: '#111827',
             }}
           >
-            Oct 12, 2024
+            {formatDate(rfq?.dt_issue_date)}
           </Typography>
         </Box>
 
@@ -109,7 +124,7 @@ function RFQHeaderCard() {
               lineHeight: 1.3,
             }}
           >
-            Oct 28, 2024 (14:00 GMT)
+            {formatDate(rfq?.dt_submission_deadline)}
           </Typography>
         </Box>
 
@@ -122,7 +137,7 @@ function RFQHeaderCard() {
               fontSize: '11px',
             }}
           >
-            Estimated Value
+            Request Number
           </Typography>
 
           <Typography
@@ -132,7 +147,7 @@ function RFQHeaderCard() {
               color: '#111827',
             }}
           >
-            $450,000.00
+            {rfq?.request?.chr_request_number || '-'}
           </Typography>
         </Box>
       </Box>
@@ -141,3 +156,4 @@ function RFQHeaderCard() {
 }
 
 export default RFQHeaderCard;
+
