@@ -41,7 +41,7 @@ import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 // Redux imports
-import { useAppDispatch,useAppSelector } from 'src/redux/hooks';
+import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
 import { fetchContractById, clearCurrentContract, Contract } from 'src/redux/ContractManagement/ContractManagementSlice';
 
 // ─────────────────────────────────────────────────────────────────────────────
