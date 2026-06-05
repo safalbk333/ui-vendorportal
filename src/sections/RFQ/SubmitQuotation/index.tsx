@@ -1,111 +1,31 @@
 'use client';
 
-import { Box, Grid, Paper, Divider, MenuItem, TextField, Typography } from '@mui/material';
+import { Box, Divider, Grid, MenuItem, Paper, TextField, Typography } from '@mui/material';
+import React, { useEffect } from 'react';
+import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import LineItemPricing from './Table';
 import PremiumBreadcrumbs from 'src/components/DynamicBreadcrumbs/page';
 import QuoteSummaryCard from './QuoteSummary';
-import React from 'react';
+import { fetchRFQById } from 'src/redux/RFQ/RfqSlice';
 
-function QuotationTerms() {
-  return (
-    <Paper elevation={0}>
-      <Typography
-        sx={{
-          fontSize: 13, // reduced title size
-          fontWeight: 600,
-        }}
-      >
-        Quotation Validity & Terms
-      </Typography>
-      <Typography
-        sx={{
-          fontSize: 11, // reduced title size
-          mb: 2,
-          color: 'text.secondary',
-        }}
-      >
-        Specify the validity period of your quote, payment terms, and any additional comments for
-        the buyer.
-      </Typography>
-
-      <Grid container spacing={1.5}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Typography
-            sx={{
-              fontSize: 12,
-              fontWeight: 500,
-              mb: 0.5,
-              color: '#6b7280',
-            }}
-          >
-            Quote Expiry Date
-          </Typography>
-
-          <TextField
-            fullWidth
-            size="medium"
-            type="date"
-            defaultValue="2024-12-31"
-            InputLabelProps={{ shrink: true }}
-            sx={{
-              '& .MuiInputBase-input': {
-                fontSize: 13,
-                py: 1,
-              },
-            }}
-          />
-        </Grid>
-
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Typography
-            sx={{
-              fontSize: 12,
-              fontWeight: 500,
-              mb: 0.5,
-              color: '#6b7280',
-            }}
-          >
-            Payment Terms
-          </Typography>
-
-          <TextField
-            select
-            fullWidth
-            size="small"
-            defaultValue="Net 30"
-            sx={{
-              '& .MuiInputBase-input': {
-                fontSize: 13,
-                py: 1,
-              },
-            }}
-          >
-            <MenuItem value="Net 30">Net 30</MenuItem>
-            <MenuItem value="Net 45">Net 45</MenuItem>
-            <MenuItem value="Net 60">Net 60</MenuItem>
-          </TextField>
-        </Grid>
-
-        <Grid size={{ xs: 12 }}>
-          <TextField
-            fullWidth
-            multiline
-            rows={3}
-            placeholder="Enter any additional notes or specific conditions for this quote..."
-            sx={{
-              '& .MuiInputBase-input': {
-                fontSize: 13,
-                py: 1,
-              },
-            }}
-          />
-        </Grid>
-      </Grid>
-    </Paper>
-  );
-}
 function Index() {
+      const router = useRouter();
+      const searchParams = useSearchParams();
+  
+    const rfqId = searchParams.get('id');
+    const dispatch = useAppDispatch();
+  useEffect(() => {
+    if (rfqId) {
+      dispatch(fetchRFQById(rfqId));
+    }
+  }, [dispatch, rfqId]);
+  
+  const { selectedRFQ, getByIdLoading } = useAppSelector(
+    (state) => state.rfq
+  );
+  console.log(selectedRFQ,'selectedRFQ')
   return (
     <Box>
       <Box mb={2}>
@@ -136,10 +56,7 @@ function Index() {
             borderRadius: 2,
           }}
         >
-          <LineItemPricing />
-          <Divider sx={{ my: 2 }} />
-          <QuotationTerms />
-        </Paper>
+<LineItemPricing rfq={selectedRFQ} />        </Paper>
 
         {/* Right Side */}
         <Paper
@@ -148,7 +65,7 @@ function Index() {
             flex: 1,
           }}
         >
-          <QuoteSummaryCard />
+         {/* <QuoteSummaryCard rfq={selectedRFQ} /> */}
         </Paper>
       </Box>
     </Box>

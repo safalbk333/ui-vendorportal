@@ -1,4 +1,4 @@
-import { Box, Chip, Paper, Stack, IconButton, Typography } from '@mui/material';
+import { Box, Chip, IconButton, Paper, Stack, Typography } from '@mui/material';
 
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
@@ -110,7 +110,7 @@ function AttachmentItem({ file }: any) {
   );
 }
 
-function AttachmentsSection() {
+function AttachmentsSection({ attachments = [] }: any) {
   return (
     <Paper
       elevation={0}
@@ -121,24 +121,46 @@ function AttachmentsSection() {
         border: '1px solid #E5E7EB',
       }}
     >
-      {/* Header */}
-      <Box display="flex" alignItems="center" gap={1} mb={1.5}>
-        <Typography
+      <Typography
+        sx={{
+          fontSize: '13px',
+          fontWeight: 600,
+          mb: 1.5,
+        }}
+      >
+        Supporting Documents
+      </Typography>
+
+      {attachments.length === 0 ? (
+        <Box
           sx={{
-            fontSize: '13px',
-            fontWeight: 600,
+            py: 3,
+            textAlign: 'center',
+            color: '#6B7280',
           }}
         >
-          Supporting Documents
-        </Typography>
-      </Box>
+          <InsertDriveFileOutlinedIcon
+            sx={{
+              fontSize: 40,
+              opacity: 0.4,
+              mb: 1,
+            }}
+          />
 
-      {/* Files */}
-      <Stack spacing={1}>
-        {attachments.map((file, index) => (
-          <AttachmentItem key={index} file={file} />
-        ))}
-      </Stack>
+          <Typography fontSize={13}>
+            No attachments available
+          </Typography>
+        </Box>
+      ) : (
+        <Stack spacing={1}>
+          {attachments.map((file: any, index: number) => (
+            <AttachmentItem
+              key={file.id || index}
+              file={file}
+            />
+          ))}
+        </Stack>
+      )}
     </Paper>
   );
 }
