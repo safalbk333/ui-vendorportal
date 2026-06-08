@@ -300,7 +300,7 @@ export default function VendorEOIWhiteUI() {
                 </Button>
 
                 <Button
-                  onClick={() => router.push('/expression-of-interest/clarifications')}
+                  // onClick={() => router.push('/expression-of-interest/clarifications')}
                   variant="outlined"
                   size="small"
                   startIcon={<Download sx={{ fontSize: 18 }} />}

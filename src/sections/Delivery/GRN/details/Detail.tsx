@@ -97,7 +97,7 @@ function Detail() {
         </Box>
 
         <Button variant="outlined" size="small">
-          Generate Invoice
+          Upload Invoice
         </Button>
       </Stack>
 

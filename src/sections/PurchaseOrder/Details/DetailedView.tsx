@@ -32,6 +32,8 @@ import {
 } from 'src/redux/PurchaseOrder/PurchaseOrderSlice';
 import { useSearchParams } from 'next/navigation';
 import { RootState } from 'src/redux/store';
+import { useRouter } from 'next/navigation';
+import { useLocalStorage } from 'minimal-shared/hooks';
 
 // ==================== PURCHASE ORDER CARD ====================
 // Renders the top summary bar for the selected purchase order.
@@ -182,15 +184,13 @@ function DetailedView() {
   const [open, setOpen] = useState(false);
   const [decision, setDecision] = useState<'agree' | 'disagree' | ''>('');
   const [clarification, setClarification] = useState('');
+  const [submitting, setSubmitting] = useState(false)
 
   // ── ID from URL query params (?id=<purchase_order_id>)
   const id = searchParams.get('id');
 
-  // ==================== EFFECTS ====================
+  const router = useRouter()
 
-  // Fetch purchase order by ID when the component mounts or the ID changes.
-  // Clears the selected purchase order from Redux on unmount to avoid stale data
-  // being shown when navigating to a different PO later.
   useEffect(() => {
 
     if (id) {
@@ -203,9 +203,9 @@ function DetailedView() {
     };
   }, [dispatch, id]);
 
-  useEffect(()=>{
+  useEffect(() => {
     const id = searchParams.get('id');
-    console.log({id})
+    console.log({ id })
   }, [id])
 
   // ==================== HANDLERS ====================
@@ -218,7 +218,7 @@ function DetailedView() {
   };
 
   // Submit acknowledgement decision (agree / disagree + optional clarification)
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     console.log({
       purchaseOrderId: id,
       decision,
@@ -227,6 +227,11 @@ function DetailedView() {
 
     // TODO: Dispatch acknowledge PO thunk here when the endpoint is ready
     handleClose();
+
+    // Navigate back to the previous page once the dialog has finished closing
+    setTimeout(() => {
+      router.back();
+    }, 300);
   };
 
   // ==================== RENDER ====================
