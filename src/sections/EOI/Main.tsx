@@ -151,11 +151,11 @@ export default function VendorEOIWhiteUI() {
       <Box mb={2} sx={{ borderTop: '1px dashed #d1d5db' }} />
 
       {/* Loading State */}
-      {loading && (
+      {/* {loading && (
         <Box display="flex" justifyContent="center" py={6}>
           <CircularProgress />
         </Box>
-      )}
+      )} */}
 
       {/* Error State */}
       {/* {error && (
@@ -190,6 +190,23 @@ export default function VendorEOIWhiteUI() {
                 opacity: isDeclined ? 0.6 : 1,
               }}
             >
+              {isUpdating && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    bgcolor: 'rgba(255,255,255,0.7)',
+                    backdropFilter: 'blur(2px)',
+                    zIndex: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    pt: 2,
+                  }}
+                >
+                  <CircularProgress size={28} />
+                </Box>
+              )}
               {/* Top Row */}
               <Stack
                 direction={{ xs: 'column', md: 'row' }}
@@ -354,7 +371,7 @@ export default function VendorEOIWhiteUI() {
                     },
                   }}
                 >
-                  {isUpdating ? 'Processing...' : 'Decline'}
+                  {isUpdating ? 'Processing...' : isDeclined ? 'Declined' : 'Decline'}
                 </Button>
 
                 <Button
