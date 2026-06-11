@@ -1,4 +1,4 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
+import { createAsyncThunk, createSlice, isRejectedWithValue } from '@reduxjs/toolkit';
 import { axiosOptima } from 'src/lib/axios';
 
 // ==================== TYPES ====================
@@ -56,6 +56,11 @@ export interface Eoi {
     vendor: EoiVendor;
 }
 
+export interface EoiStatusUpdate {
+    chr_status: string;
+    txt_notes?: string;
+}
+
 interface EoiManagementState {
     data: Eoi[];
     loading: boolean;
@@ -90,6 +95,27 @@ export const fetchEois = createAsyncThunk(
     }
 );
 
+// UPDATE EOI STATUS - PUT /eoi/{id}/status
+export const updateEoiStatus = createAsyncThunk(
+    'eoiManagement/updateStatus',
+    async ({ id, data }: { id: string; data: EoiStatusUpdate }, { rejectWithValue }) => {
+        try {
+            const response = await axiosOptima.put(`/eoi/${id}/status`, data);
+
+            console.log(`EOI status updated successfully for ID ${id}:`, response.data);
+
+            return {
+                id,
+                updatedEoi: response.data.data || response.data // Adjust based on your API response structure
+            };
+        } catch (error: any) {
+            return rejectWithValue(
+                error?.response?.data?.message || 'Failed to update EOI status'
+            );
+        }
+    }
+);
+
 // ==================== SLICE ====================
 
 const eoiManagementSlice = createSlice({
@@ -113,6 +139,26 @@ const eoiManagementSlice = createSlice({
                 state.data = action.payload;
             })
             .addCase(fetchEois.rejected, (state, action: any) => {
+                state.loading = false;
+                state.error = action.payload;
+            })
+            // Update EOI Status
+            .addCase(updateEoiStatus.pending, (state) => {
+                state.loading = true;
+                state.error = null;
+            })
+            .addCase(updateEoiStatus.fulfilled, (state, action) => {
+                state.loading = false;
+                // Update the specific EOI in the data array
+                const index = state.data.findIndex(eoi => eoi.pk_chr_eoi_id === action.payload.id);
+                if (index !== -1 && action.payload.updatedEoi) {
+                    state.data[index] = {
+                        ...state.data[index],
+                        ...action.payload.updatedEoi
+                    };
+                }
+            })
+            .addCase(updateEoiStatus.rejected, (state, action: any) => {
                 state.loading = false;
                 state.error = action.payload;
             });

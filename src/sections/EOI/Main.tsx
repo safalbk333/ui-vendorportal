@@ -10,7 +10,7 @@ import React, { useEffect, useState } from 'react';
 import ThumbUpOffAltRoundedIcon from '@mui/icons-material/ThumbUpOffAltRounded';
 import { useRouter } from 'next/navigation';
 
-import { fetchEois } from 'src/redux/EoiManagement/EoiManagementSlice';
+import { fetchEois, updateEoiStatus } from 'src/redux/EoiManagement/EoiManagementSlice';
 import { RootState } from 'src/redux/store';
 import { useAppDispatch, useAppSelector } from 'src/redux/hooks';
 import { Download } from '@mui/icons-material';
@@ -24,9 +24,12 @@ export default function VendorEOIWhiteUI() {
     (state: RootState) => state.eoiManagement
   );
 
-  // Local state to track responded EOIs
+  // Local state to track responded/declined EOIs
   const [respondedEois, setRespondedEois] = useState<Set<string>>(new Set());
   const [declinedEois, setDeclinedEois] = useState<Set<string>>(new Set());
+
+  // Track which EOIs are currently being updated (to disable buttons)
+  const [updatingEois, setUpdatingEois] = useState<Set<string>>(new Set());
 
   // Toast state
   const [toast, setToast] = useState<{
@@ -54,24 +57,78 @@ export default function VendorEOIWhiteUI() {
     })}`;
   };
 
-  // Handle Express Interest button click
-  const handleExpressInterest = (eoiId: string) => {
-    setRespondedEois(prev => new Set(prev).add(eoiId));
-    setToast({
-      open: true,
-      message: 'Successfully responded to EOI!',
-      severity: 'success',
-    });
+  // Handle Express Interest
+  const handleExpressInterest = async (eoiId: string) => {
+    if (updatingEois.has(eoiId)) return;
+
+    setUpdatingEois(prev => new Set(prev).add(eoiId));
+
+    try {
+      await dispatch(updateEoiStatus({
+        id: eoiId,
+        data: {
+          chr_status: "INTERESTED",
+          txt_notes: "Vendor expressed interest"
+        }
+      })).unwrap();
+
+      setRespondedEois(prev => new Set(prev).add(eoiId));
+
+      setToast({
+        open: true,
+        message: 'Successfully expressed interest in this EOI!',
+        severity: 'success',
+      });
+    } catch (err: any) {
+      setToast({
+        open: true,
+        message: err?.message || 'Failed to express interest. Please try again.',
+        severity: 'error',
+      });
+    } finally {
+      setUpdatingEois(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eoiId);
+        return newSet;
+      });
+    }
   };
 
-  // Handle Decline button click
-  const handleDecline = (eoiId: string) => {
-    setDeclinedEois(prev => new Set(prev).add(eoiId));
-    setToast({
-      open: true,
-      message: 'EOI has been declined',
-      severity: 'info',
-    });
+  // Handle Decline
+  const handleDecline = async (eoiId: string) => {
+    if (updatingEois.has(eoiId)) return;
+
+    setUpdatingEois(prev => new Set(prev).add(eoiId));
+
+    try {
+      await dispatch(updateEoiStatus({
+        id: eoiId,
+        data: {
+          chr_status: "DECLINED",
+          txt_notes: "Vendor declined the EOI"
+        }
+      })).unwrap();
+
+      setDeclinedEois(prev => new Set(prev).add(eoiId));
+
+      setToast({
+        open: true,
+        message: 'EOI has been declined',
+        severity: 'info',
+      });
+    } catch (err: any) {
+      setToast({
+        open: true,
+        message: err?.message || 'Failed to decline EOI. Please try again.',
+        severity: 'error',
+      });
+    } finally {
+      setUpdatingEois(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(eoiId);
+        return newSet;
+      });
+    }
   };
 
   // Close toast
@@ -101,11 +158,11 @@ export default function VendorEOIWhiteUI() {
       )}
 
       {/* Error State */}
-      {error && (
+      {/* {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
-      )}
+      )} */}
 
       {!loading && !error && eois.length === 0 && (
         <Typography variant="h6" textAlign="center" py={6} color="text.secondary">
@@ -117,6 +174,7 @@ export default function VendorEOIWhiteUI() {
         {eois.map((eoi) => {
           const isResponded = respondedEois.has(eoi.pk_chr_eoi_id);
           const isDeclined = declinedEois.has(eoi.pk_chr_eoi_id);
+          const isUpdating = updatingEois.has(eoi.pk_chr_eoi_id);
 
           return (
             <Paper
@@ -251,7 +309,7 @@ export default function VendorEOIWhiteUI() {
                     <ThumbUpOffAltRoundedIcon sx={{ fontSize: 18 }} />
                   }
                   onClick={() => !isResponded && !isDeclined && handleExpressInterest(eoi.pk_chr_eoi_id)}
-                  disabled={isResponded || isDeclined}
+                  disabled={isResponded || isDeclined || isUpdating}
                   sx={{
                     bgcolor: isResponded ? 'transparent' : '#06b6d4',
                     color: isResponded ? '#06b6d4' : '#fff',
@@ -271,7 +329,7 @@ export default function VendorEOIWhiteUI() {
                     },
                   }}
                 >
-                  {isResponded ? 'Responded' : 'Express Interest'}
+                  {isUpdating ? 'Processing...' : isResponded ? 'Responded' : 'Express Interest'}
                 </Button>
 
                 <Button
@@ -279,7 +337,7 @@ export default function VendorEOIWhiteUI() {
                   size="small"
                   startIcon={<CloseRoundedIcon sx={{ fontSize: 18 }} />}
                   onClick={() => !isDeclined && !isResponded && handleDecline(eoi.pk_chr_eoi_id)}
-                  disabled={isResponded || isDeclined}
+                  disabled={isResponded || isDeclined || isUpdating}
                   sx={{
                     borderColor: '#dbe3ec',
                     color: '#475569',
@@ -296,15 +354,14 @@ export default function VendorEOIWhiteUI() {
                     },
                   }}
                 >
-                  Decline
+                  {isUpdating ? 'Processing...' : 'Decline'}
                 </Button>
 
                 <Button
-                  // onClick={() => router.push('/expression-of-interest/clarifications')}
                   variant="outlined"
                   size="small"
                   startIcon={<Download sx={{ fontSize: 18 }} />}
-                  disabled={isDeclined}
+                  disabled={isDeclined || isUpdating}
                   sx={{
                     borderColor: '#dbe3ec',
                     color: '#475569',
@@ -329,7 +386,7 @@ export default function VendorEOIWhiteUI() {
                   variant="outlined"
                   size="small"
                   startIcon={<ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />}
-                  disabled={isDeclined}
+                  disabled={isDeclined || isUpdating}
                   sx={{
                     borderColor: '#dbe3ec',
                     color: '#475569',
@@ -348,9 +405,7 @@ export default function VendorEOIWhiteUI() {
                 >
                   Ask Clarification
                 </Button>
-
               </Stack>
-
             </Paper>
           );
         })}

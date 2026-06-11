@@ -347,11 +347,11 @@ function PurchaseOrderDashboard() {
         </Box>
       </Box>
 
-      {error && (
+      {/* {error && (
         <Typography color="error" sx={{ mt: 2, textAlign: 'center' }}>
           Error: {error}
         </Typography>
-      )}
+      )} */}
     </Box>
   );
 }
